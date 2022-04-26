@@ -292,6 +292,9 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
     @Autowired
     private ResourceService resourceService;
 
+    @Autowired
+    private JupiterModeService jupiterModeService;
+
     @Value("${configuration.default-api-icon:}")
     private String defaultApiIcon;
 
@@ -452,6 +455,9 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
 
             if (apiDefinition != null) {
                 apiDefinition = ((ObjectNode) apiDefinition).put("id", id);
+            }
+            if (api.getExecutionMode() == null) {
+                api.setExecutionMode(jupiterModeService.getExecutionModeFor(apiDefinition));
             }
 
             Api repoApi = convert(executionContext, id, api, apiDefinition != null ? apiDefinition.toString() : null);
@@ -1757,6 +1763,10 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
             updateApiDefinition.setVersion(updateApiEntity.getVersion());
             updateApiDefinition.setProxy(updateApiEntity.getProxy());
 
+            if (updateApiEntity.getExecutionMode() != null) {
+                updateApiDefinition.setExecutionMode(updateApiEntity.getExecutionMode());
+            }
+
             if (StringUtils.isNotEmpty(updateApiEntity.getGraviteeDefinitionVersion())) {
                 updateApiDefinition.setDefinitionVersion(DefinitionVersion.valueOfLabel(updateApiEntity.getGraviteeDefinitionVersion()));
             }
@@ -2483,6 +2493,7 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
         apiModelEntity.setVisibility(apiEntity.getVisibility());
         apiModelEntity.setCategories(apiEntity.getCategories());
         apiModelEntity.setVersion(apiEntity.getVersion());
+        apiModelEntity.setExecutionMode(apiEntity.getExecutionMode());
         apiModelEntity.setState(apiEntity.getState());
         apiModelEntity.setTags(apiEntity.getTags());
         apiModelEntity.setServices(apiEntity.getServices());
@@ -2680,6 +2691,7 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
 
     /**
      * This method use ApiQuery to search in indexer for fields in api definition
+     *
      * @param executionContext
      * @param apiQuery
      * @return Optional<List < String>> an optional list of api ids and Optional.empty()
@@ -2724,13 +2736,11 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
             searchEngineQuery.setFilters(filters);
         }
 
-        if (!isBlank(query.getContextPath()) || !isBlank(query.getTag())) {
-            if (!isBlank(query.getContextPath())) {
-                searchEngineQuery.addExplicitFilter("paths", query.getContextPath());
-            }
-            if (!isBlank(query.getTag())) {
-                searchEngineQuery.addExplicitFilter("tag", query.getTag());
-            }
+        if (!isBlank(query.getContextPath())) {
+            searchEngineQuery.addExplicitFilter("paths", query.getContextPath());
+        }
+        if (!isBlank(query.getTag())) {
+            searchEngineQuery.addExplicitFilter("tag", query.getTag());
         }
         return searchEngineQuery;
     }
@@ -3367,7 +3377,7 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
                 lifecycleState = LifecycleState.STOPPED;
                 break;
             default:
-                throw new IllegalArgumentException("Unknown EventType " + eventType.toString() + " to convert EventType into Lifecycle");
+                throw new IllegalArgumentException("Unknown EventType " + eventType + " to convert EventType into Lifecycle");
         }
         return lifecycleState;
     }
