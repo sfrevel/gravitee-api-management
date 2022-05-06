@@ -21,6 +21,7 @@ import { StateDeclaration, TransitionService } from '@uirouter/angularjs';
 import EnvironmentService from '../services/environment.service';
 import PortalConfigService from '../services/portalConfig.service';
 import UserService from '../services/user.service';
+import PendoService from '../services/pendo.service';
 import ConsoleSettingsService from '../services/consoleSettings.service';
 
 function runBlock(
@@ -39,6 +40,7 @@ function runBlock(
   EnvironmentService: EnvironmentService,
   PortalConfigService: PortalConfigService,
   ConsoleSettingsService: ConsoleSettingsService,
+  PendoService: PendoService,
 ) {
   'ngInject';
 
@@ -55,6 +57,7 @@ function runBlock(
       if (!UserService.isAuthenticated()) {
         return trans.router.stateService.target('login');
       }
+      PendoService.initialize(UserService.currentUser)
       if (
         UserService.isAuthenticated() &&
         UserService.currentUser.firstLogin &&

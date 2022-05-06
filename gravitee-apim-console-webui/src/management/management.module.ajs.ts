@@ -411,6 +411,7 @@ import DeleteApiQualityRuleDialogController from '../management/configuration/ap
 import DialogQueryFilterInformationController from './configuration/analytics/dashboard/query-filter-information.dialog.controller';
 
 import ReCaptchaService from '../services/reCaptcha.service';
+import PendoService from "../services/pendo.service";
 
 import ThemeController from './configuration/theme/theme.controller';
 import ThemeComponent from './configuration/theme/theme.component';
@@ -788,6 +789,7 @@ graviteeManagementModule.service('MessageService', MessageService);
 graviteeManagementModule.service('PortalService', PortalService);
 graviteeManagementModule.service('ThemeService', ThemeService);
 graviteeManagementModule.service('ReCaptchaService', ReCaptchaService);
+graviteeManagementModule.service('PendoService', PendoService);
 graviteeManagementModule.service('TokenService', TokenService);
 graviteeManagementModule.service('EnvironmentService', EnvironmentService);
 graviteeManagementModule.service('OrganizationService', OrganizationService);

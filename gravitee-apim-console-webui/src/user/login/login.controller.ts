@@ -23,6 +23,7 @@ import AuthenticationService from '../../services/authentication.service';
 import ReCaptchaService from '../../services/reCaptcha.service';
 import RouterService from '../../services/router.service';
 import UserService from '../../services/user.service';
+import PendoService from '../../services/pendo.service';
 
 class LoginController {
   user: any = {};
@@ -41,6 +42,7 @@ class LoginController {
     private $stateParams: StateParams,
     private $scope,
     private ReCaptchaService: ReCaptchaService,
+    private PendoService: PendoService,
   ) {
     'ngInject';
     this.userCreationEnabled = Constants.org.settings.management.userCreation.enabled;
@@ -93,6 +95,7 @@ class LoginController {
   }
 
   loginSuccess(user: User) {
+    this.PendoService.initialize(user);
     this.$rootScope.$broadcast('graviteeUserRefresh', { user: user });
     const redirectUri = this.getRedirectUri();
     if (redirectUri && !redirectUri.includes('/newsletter')) {
