@@ -1,0 +1,3 @@
+databaseChangeLog:
+  - include:
+      - file: liquibase/changelogs/v3_18_0/changes.json

@@ -22,6 +22,8 @@ import io.gravitee.repository.mongodb.common.MongoFactory;
 import io.gravitee.repository.mongodb.management.converters.BsonUndefinedToNullReadingConverter;
 import java.util.List;
 import javax.annotation.PostConstruct;
+
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -42,7 +44,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 @ComponentScan
 @EnableMongoRepositories
 @Profile("!test")
-public class ManagementRepositoryConfiguration extends AbstractRepositoryConfiguration {
+public class ManagementRepositoryConfiguration extends AbstractRepositoryConfiguration implements InitializingBean {
 
     @Autowired
     @Qualifier("managementMongo")
@@ -81,5 +83,10 @@ public class ManagementRepositoryConfiguration extends AbstractRepositoryConfigu
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        runLiquibase();
     }
 }

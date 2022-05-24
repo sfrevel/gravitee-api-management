@@ -1,0 +1,28 @@
+{
+    "databaseChangeLog": [
+        {
+            "changeSet": {
+                "id": "3.18.0-0",
+                "author": "GraviteeSource Team",
+                "comment": "Add default organization",
+                "changes": [
+                    {
+                        "insertOne": {
+                            "collectionName": "organizations",
+                            "document": {
+                                "$rawJson": {
+                                    "_id": "DEFAULT",
+                                    "_class": "io.gravitee.repository.mongodb.management.internal.model.OrganizationMongo",
+                                    "description": "Default organization",
+                                    "hrids": ["default"],
+                                    "name": "Default organization"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "rollback": []
+            }
+        }
+    ]
+}
