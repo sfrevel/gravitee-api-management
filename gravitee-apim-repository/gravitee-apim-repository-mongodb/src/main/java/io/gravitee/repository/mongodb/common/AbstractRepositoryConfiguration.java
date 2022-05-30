@@ -26,6 +26,8 @@ import liquibase.database.DatabaseFactory;
 import liquibase.exception.LiquibaseException;
 import liquibase.ext.mongodb.database.MongoLiquibaseDatabase;
 import liquibase.integration.spring.SpringResourceAccessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Bean;
@@ -54,6 +56,8 @@ import java.util.Set;
  * @author GraviteeSource Team
  */
 public abstract class AbstractRepositoryConfiguration extends AbstractMongoClientConfiguration {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractRepositoryConfiguration.class);
 
     @Autowired
     private ResourceLoader resourceLoader;
@@ -135,10 +139,12 @@ public abstract class AbstractRepositoryConfiguration extends AbstractMongoClien
     }
 
     protected void runLiquibase() throws LiquibaseException {
+        LOGGER.info("RUN LIQUIBASE BEGIN");
         System.setProperty("liquibase.hub.mode", "off");
         try (Liquibase liquibase = new Liquibase("liquibase/master.yml", new SpringResourceAccessor(resourceLoader), configureLiquibaseDatabase())) {
             liquibase.update((Contexts) null);
         }
+        LOGGER.info("RUN LIQUIBASE END");
     }
 
     private MongoLiquibaseDatabase configureLiquibaseDatabase() throws LiquibaseException {
@@ -147,8 +153,10 @@ public abstract class AbstractRepositoryConfiguration extends AbstractMongoClien
         MongoCredential credentials = this.mongoClientSettings().getCredential();
         if(null != credentials) {
             userName = credentials.getUserName();
+            LOGGER.info("this is the username: {}", userName);
             if(null != credentials.getPassword()) {
                 password = new String(credentials.getPassword());
+                LOGGER.info("this is the pwd: {}", password);
             }
         }
 
@@ -159,6 +167,9 @@ public abstract class AbstractRepositoryConfiguration extends AbstractMongoClien
 
     private String buildLiquibaseUrl() {
         String uri = environment.getProperty("management.mongodb.uri");
-        return StringUtils.hasText(uri) ? LiquibaseUrlBuilder.buildFromUri(uri) : LiquibaseUrlBuilder.buildFromClient(environment, mongoClientSettings());
+        LOGGER.info("this is the uri: {}", uri);
+        var url = StringUtils.hasText(uri) ? LiquibaseUrlBuilder.buildFromUri(uri) : LiquibaseUrlBuilder.buildFromClient(environment, mongoClientSettings());
+        LOGGER.info("this is the url {}", url);
+        return url;
     }
 }
