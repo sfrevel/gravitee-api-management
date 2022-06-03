@@ -31,7 +31,7 @@ import java.util.List;
  */
 public class FlowChainFactory {
 
-    private final List<ChainHook> flowHooks = new ArrayList<>();
+    protected final List<ChainHook> flowHooks = new ArrayList<>();
     private final PolicyChainFactory platformPolicyChainFactory;
     private final PolicyChainFactory apiPolicyChainFactory;
     private final OrganizationManager organizationManager;
@@ -53,7 +53,7 @@ public class FlowChainFactory {
 
     public FlowChain createPlatformFlow(final Api api) {
         FlowChain flowPlatformChain = new FlowChain(
-            "flow-platform",
+            "platform",
             FlowResolverFactory.forPlatform(api, organizationManager),
             platformPolicyChainFactory
         );
@@ -62,13 +62,13 @@ public class FlowChainFactory {
     }
 
     public FlowChain createPlanFlow(final Api api) {
-        FlowChain flowPlanChain = new FlowChain("flow-api-plan", FlowResolverFactory.forApiPlan(api), apiPolicyChainFactory);
+        FlowChain flowPlanChain = new FlowChain("plan", FlowResolverFactory.forApiPlan(api), apiPolicyChainFactory);
         flowPlanChain.addHooks(flowHooks);
         return flowPlanChain;
     }
 
     public FlowChain createApiFlow(final Api api) {
-        FlowChain flowApiChain = new FlowChain("flow-api", FlowResolverFactory.forApi(api), apiPolicyChainFactory);
+        FlowChain flowApiChain = new FlowChain("api", FlowResolverFactory.forApi(api), apiPolicyChainFactory);
         flowApiChain.addHooks(flowHooks);
         return flowApiChain;
     }

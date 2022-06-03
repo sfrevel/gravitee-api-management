@@ -71,12 +71,13 @@ import io.gravitee.plugin.resource.ResourceClassLoaderFactory;
 import io.gravitee.plugin.resource.ResourcePlugin;
 import io.gravitee.resource.api.ResourceManager;
 import io.vertx.core.Vertx;
-import java.util.ArrayList;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.ResolvableType;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -217,22 +218,22 @@ public class ApiReactorHandlerFactory implements ReactorHandlerFactory<Api> {
                         io.gravitee.gateway.jupiter.policy.PolicyChainFactory.class
                     );
 
-                    final io.gravitee.gateway.jupiter.policy.PolicyChainFactory apiPolicyChainFactory = new DefaultPolicyChainFactory(
-                        api.getId(),
-                        configuration,
-                        policyManager
+                    final io.gravitee.gateway.jupiter.policy.PolicyChainFactory apiPolicyChainFactory = createPolicyChainFactory(
+                        api,
+                        policyManager,
+                        configuration
                     );
 
                     final OrganizationManager organizationManager = applicationContext.getBean(OrganizationManager.class);
 
-                    FlowChainFactory flowChainFactory = new FlowChainFactory(
+                    FlowChainFactory flowChainFactory = createFlowChainFactory(
                         platformPolicyChainFactory,
                         apiPolicyChainFactory,
                         organizationManager,
                         configuration
                     );
 
-                    return new SyncApiReactor(
+                    return createSyncApiReactor(
                         api,
                         apiComponentProvider,
                         templateVariableProviders(api, referenceRegister),
@@ -253,6 +254,49 @@ public class ApiReactorHandlerFactory implements ReactorHandlerFactory<Api> {
         }
 
         return null;
+    }
+
+    protected SyncApiReactor createSyncApiReactor(
+        final Api api,
+        final CompositeComponentProvider apiComponentProvider,
+        final List<TemplateVariableProvider> templateVariableProviders,
+        final Invoker invoker,
+        final ResourceLifecycleManager resourceLifecycleManager,
+        final ApiProcessorChainFactory apiProcessorChainFactory,
+        final io.gravitee.gateway.jupiter.policy.PolicyManager policyManager,
+        final FlowChainFactory flowChainFactory,
+        final GroupLifecycleManager groupLifecycleManager,
+        final Configuration configuration
+    ) {
+        return new SyncApiReactor(
+            api,
+            apiComponentProvider,
+            templateVariableProviders,
+            new InvokerAdapter(invoker),
+            resourceLifecycleManager,
+            apiProcessorChainFactory,
+            policyManager,
+            flowChainFactory,
+            groupLifecycleManager,
+            configuration
+        );
+    }
+
+    protected DefaultPolicyChainFactory createPolicyChainFactory(
+        Api api,
+        io.gravitee.gateway.jupiter.policy.PolicyManager policyManager,
+        Configuration configuration
+    ) {
+        return new DefaultPolicyChainFactory(api.getId(), policyManager, configuration);
+    }
+
+    protected FlowChainFactory createFlowChainFactory(
+        io.gravitee.gateway.jupiter.policy.PolicyChainFactory platformPolicyChainFactory,
+        io.gravitee.gateway.jupiter.policy.PolicyChainFactory apiPolicyChainFactory,
+        OrganizationManager organizationManager,
+        Configuration configuration
+    ) {
+        return new FlowChainFactory(platformPolicyChainFactory, apiPolicyChainFactory, organizationManager, configuration);
     }
 
     private boolean isV3ExecutionMode(Api api) {
@@ -282,7 +326,7 @@ public class ApiReactorHandlerFactory implements ReactorHandlerFactory<Api> {
         return executionContextFactory;
     }
 
-    private List<TemplateVariableProvider> templateVariableProviders(Api api, DefaultReferenceRegister referenceRegister) {
+    protected List<TemplateVariableProvider> templateVariableProviders(Api api, DefaultReferenceRegister referenceRegister) {
         List<TemplateVariableProvider> templateVariableProviders = new ArrayList<>();
         templateVariableProviders.add(new ApiTemplateVariableProvider(api));
         templateVariableProviders.add(referenceRegister);

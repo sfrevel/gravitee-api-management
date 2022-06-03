@@ -23,7 +23,6 @@ import io.gravitee.gateway.http.vertx.VertxHttpHeaders;
 import io.gravitee.gateway.jupiter.core.context.MutableResponse;
 import io.reactivex.*;
 import io.vertx.reactivex.core.http.HttpServerResponse;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Jeoffrey HAEYAERT (jeoffrey.haeyaert at graviteesource.com)
@@ -35,7 +34,6 @@ public class VertxHttpServerResponse implements MutableResponse {
     protected final HttpHeaders headers;
     protected final HttpHeaders trailers;
     protected final HttpServerResponse nativeResponse;
-    private final AtomicBoolean cached;
     protected Flowable<Buffer> chunks;
 
     public VertxHttpServerResponse(VertxHttpServerRequest serverRequest) {
@@ -43,7 +41,6 @@ public class VertxHttpServerResponse implements MutableResponse {
         this.nativeResponse = serverRequest.nativeRequest.response();
         this.headers = new VertxHttpHeaders(nativeResponse.headers().getDelegate());
         this.trailers = new VertxHttpHeaders(nativeResponse.trailers().getDelegate());
-        this.cached = new AtomicBoolean(false);
     }
 
     protected boolean valid() {
@@ -110,9 +107,7 @@ public class VertxHttpServerResponse implements MutableResponse {
 
     @Override
     public Maybe<Buffer> body() {
-        // Reduce all the chunks to create a unique buffer containing all the content.
-        final Maybe<Buffer> body = chunks().reduce(Buffer::appendBuffer);
-        cacheChunks(body.toFlowable());
+        cacheChunks(chunks().reduce(Buffer::appendBuffer).toFlowable());
 
         return chunks.firstElement();
     }
@@ -124,20 +119,18 @@ public class VertxHttpServerResponse implements MutableResponse {
 
     @Override
     public void body(Buffer buffer) {
-        if (chunks == null) {
-            this.chunks = Flowable.just(buffer);
+        if (this.chunks == null) {
+            cacheChunks(Flowable.just(buffer));
         } else {
-            this.chunks = chunks.compose(upstream -> Flowable.just(buffer));
+            cacheChunks(this.chunks.compose(upstream -> Flowable.just(buffer)));
         }
     }
 
     @Override
     public Completable onBody(MaybeTransformer<Buffer, Buffer> onBody) {
         // Reduce all the chunks then apply the transformation.
-        final Maybe<Buffer> body = chunks.reduce(Buffer::appendBuffer).compose(onBody);
-        cacheChunks(body.toFlowable());
-
-        return chunks.ignoreElements();
+        cacheChunks(chunks().reduce(Buffer::appendBuffer).compose(onBody).toFlowable());
+        return this.chunks.ignoreElements();
     }
 
     @Override
@@ -151,51 +144,47 @@ public class VertxHttpServerResponse implements MutableResponse {
 
     @Override
     public void chunks(final Flowable<Buffer> chunks) {
-        this.chunks = chunks.compose(upstream -> chunks);
+        if (this.chunks == null) {
+            cacheChunks(chunks);
+        } else {
+            cacheChunks(this.chunks.compose(upstream -> chunks));
+        }
     }
 
     @Override
     public Completable onChunk(FlowableTransformer<Buffer, Buffer> chunkTransformer) {
-        cacheChunks(chunks.compose(chunkTransformer));
+        cacheChunks(chunks().compose(chunkTransformer));
 
-        return chunks.ignoreElements();
+        return this.chunks.ignoreElements();
     }
 
     @Override
     public Completable end() {
-        return Completable.defer(
-            () -> {
-                if (!valid()) {
-                    return Completable.error(new IllegalStateException("The response is already ended"));
-                }
-                if (!nativeResponse.headWritten()) {
-                    writeHeaders();
-                }
-
-                if (chunks != null) {
-                    return nativeResponse.rxSend(
-                        chunks
-                            .map(buffer -> io.vertx.reactivex.core.buffer.Buffer.buffer(buffer.getNativeBuffer()))
-                            .doOnNext(
-                                buffer ->
-                                    serverRequest
-                                        .metrics()
-                                        .setResponseContentLength(serverRequest.metrics().getResponseContentLength() + buffer.length())
-                            )
-                    );
-                }
-
-                return nativeResponse.rxEnd();
+        return Completable.defer(() -> {
+            if (!valid()) {
+                return Completable.error(new IllegalStateException("The response is already ended"));
             }
-        );
+            if (!nativeResponse.headWritten()) {
+                writeHeaders();
+            }
+
+            if (chunks != null) {
+                return nativeResponse.rxSend(
+                    chunks
+                        .map(buffer -> io.vertx.reactivex.core.buffer.Buffer.buffer(buffer.getNativeBuffer()))
+                        .doOnNext(buffer ->
+                            serverRequest
+                                .metrics()
+                                .setResponseContentLength(serverRequest.metrics().getResponseContentLength() + buffer.length())
+                        )
+                );
+            }
+
+            return nativeResponse.rxEnd();
+        });
     }
 
     private void cacheChunks(Flowable<Buffer> chunks) {
-        this.chunks = chunks;
-
-        if (cached.compareAndSet(false, true)) {
-            // Make sure the response body is cached to avoid multiple consumptions when multiple subscriptions occur (especially with v3 adapters).
-            this.chunks = this.chunks.cache();
-        }
+        this.chunks = chunks.cache();
     }
 }

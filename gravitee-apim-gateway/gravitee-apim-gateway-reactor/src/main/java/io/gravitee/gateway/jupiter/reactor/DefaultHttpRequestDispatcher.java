@@ -139,7 +139,7 @@ public class DefaultHttpRequestDispatcher
             prepareMetrics(request.metrics());
 
             final ComponentProvider globalComponentProvider = applicationContext.getBean(ComponentProvider.class);
-            MutableRequestExecutionContext ctx = new DefaultRequestExecutionContext(request, request.response());
+            MutableRequestExecutionContext ctx = createExecutionContext(request);
             ctx.componentProvider(globalComponentProvider);
 
             ProcessorChain preProcessorChain = platformProcessorChainFactory.preProcessorChain();
@@ -152,31 +152,33 @@ public class DefaultHttpRequestDispatcher
                     ExecutionPhase.REQUEST
                 )
                 .andThen(
-                    Completable.defer(
-                        () -> {
-                            if (handlerEntrypoint == null || handlerEntrypoint.target() == null) {
-                                return handleNotFound(ctx);
-                            } else {
-                                // Jupiter execution mode.
-                                ProcessorChain postProcessorChain = platformProcessorChainFactory.postProcessorChain();
-                                return handleJupiterRequest(ctx, handlerEntrypoint)
-                                    .andThen(
-                                        HookHelper.hook(
-                                            postProcessorChain.execute(ctx, ExecutionPhase.RESPONSE),
-                                            postProcessorChain.getId(),
-                                            processorChainHooks,
-                                            ctx,
-                                            ExecutionPhase.RESPONSE
-                                        )
-                                    );
-                            }
+                    Completable.defer(() -> {
+                        if (handlerEntrypoint == null || handlerEntrypoint.target() == null) {
+                            return handleNotFound(ctx);
+                        } else {
+                            // Jupiter execution mode.
+                            ProcessorChain postProcessorChain = platformProcessorChainFactory.postProcessorChain();
+                            return handleJupiterRequest(ctx, handlerEntrypoint)
+                                .andThen(
+                                    HookHelper.hook(
+                                        postProcessorChain.execute(ctx, ExecutionPhase.RESPONSE),
+                                        postProcessorChain.getId(),
+                                        processorChainHooks,
+                                        ctx,
+                                        ExecutionPhase.RESPONSE
+                                    )
+                                );
                         }
-                    )
+                    })
                 );
         } else {
             // V3 execution mode.
             return handleV3Request(httpServerRequest, handlerEntrypoint);
         }
+    }
+
+    protected DefaultRequestExecutionContext createExecutionContext(VertxHttpServerRequest request) {
+        return new DefaultRequestExecutionContext(request, request.response());
     }
 
     private Completable handleNotFound(final MutableRequestExecutionContext ctx) {
@@ -211,21 +213,17 @@ public class DefaultHttpRequestDispatcher
         // Set gateway tenants and zones in request metrics.
         prepareMetrics(request.metrics());
         // Prepare handler chain and catch the end of the v3 request handling to complete the reactive chain.
-        return Completable.create(
-            emitter -> {
-                Handler<io.gravitee.gateway.api.ExecutionContext> endHandler = endRequestHandler(emitter, httpServerRequest);
-                requestProcessorChainFactory
-                    .create()
-                    .handler(
-                        ctx -> {
-                            reactorHandler.handle(ctx, executionContext -> processResponse(executionContext, endHandler));
-                        }
-                    )
-                    .errorHandler(result -> processResponse(simpleExecutionContext, endHandler))
-                    .exitHandler(result -> processResponse(simpleExecutionContext, endHandler))
-                    .handle(simpleExecutionContext);
-            }
-        );
+        return Completable.create(emitter -> {
+            Handler<io.gravitee.gateway.api.ExecutionContext> endHandler = endRequestHandler(emitter, httpServerRequest);
+            requestProcessorChainFactory
+                .create()
+                .handler(ctx -> {
+                    reactorHandler.handle(ctx, executionContext -> processResponse(executionContext, endHandler));
+                })
+                .errorHandler(result -> processResponse(simpleExecutionContext, endHandler))
+                .exitHandler(result -> processResponse(simpleExecutionContext, endHandler))
+                .handle(simpleExecutionContext);
+        });
     }
 
     private Handler<io.gravitee.gateway.api.ExecutionContext> endRequestHandler(

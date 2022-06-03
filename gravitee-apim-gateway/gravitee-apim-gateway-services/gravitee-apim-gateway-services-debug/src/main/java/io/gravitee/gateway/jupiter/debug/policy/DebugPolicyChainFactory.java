@@ -13,11 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.gravitee.gateway.debug.reactor.handler.context;
+package io.gravitee.gateway.jupiter.debug.policy;
 
-public enum DebugScope {
-    ON_RESPONSE,
-    ON_RESPONSE_CONTENT,
-    ON_REQUEST,
-    ON_REQUEST_CONTENT,
+import io.gravitee.gateway.jupiter.policy.DefaultPolicyChainFactory;
+import io.gravitee.gateway.jupiter.policy.PolicyManager;
+import io.gravitee.node.api.configuration.Configuration;
+
+/**
+ * @author Guillaume LAMIRAND (guillaume.lamirand at graviteesource.com)
+ * @author GraviteeSource Team
+ */
+public class DebugPolicyChainFactory extends DefaultPolicyChainFactory {
+
+    public DebugPolicyChainFactory(String id, PolicyManager policyManager, Configuration configuration) {
+        super(id, policyManager, configuration);
+        policyHooks.add(new DebugPolicyHook());
+    }
 }

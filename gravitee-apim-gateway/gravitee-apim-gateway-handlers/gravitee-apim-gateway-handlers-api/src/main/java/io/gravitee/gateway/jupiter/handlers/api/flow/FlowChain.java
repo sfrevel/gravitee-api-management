@@ -15,6 +15,7 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.flow;
 
+import static io.gravitee.gateway.jupiter.api.context.ExecutionContext.ATTR_INTERNAL_FLOW_STAGE;
 import static io.gravitee.gateway.jupiter.api.context.ExecutionContext.ATTR_INTERNAL_PREFIX;
 
 import io.gravitee.definition.model.flow.Flow;
@@ -79,8 +80,12 @@ public class FlowChain implements Hookable<ChainHook> {
      */
     public Completable execute(RequestExecutionContext ctx, ExecutionPhase phase) {
         return resolveFlows(ctx)
+            .doOnNext(flow -> {
+                log.debug("Executing flow {} ({} level, {} phase)", flow.getName(), id, phase.name());
+                ctx.putInternalAttribute(ATTR_INTERNAL_FLOW_STAGE, id);
+            })
             .flatMapCompletable(flow -> executeFlow(ctx, flow, phase), false, 1)
-            .doOnSubscribe(disposable -> log.debug("Executing flow chain {} on {} phase", id, phase));
+            .doOnComplete(() -> ctx.removeInternalAttribute(ATTR_INTERNAL_FLOW_STAGE));
     }
 
     /**
@@ -93,19 +98,17 @@ public class FlowChain implements Hookable<ChainHook> {
      * @return the resolved flows.
      */
     private Flowable<Flow> resolveFlows(RequestExecutionContext ctx) {
-        return Flowable.defer(
-            () -> {
-                Flowable<Flow> flows = ctx.getInternalAttribute(resolvedFlowAttribute);
+        return Flowable.defer(() -> {
+            Flowable<Flow> flows = ctx.getInternalAttribute(resolvedFlowAttribute);
 
-                if (flows == null) {
-                    // Resolves the flows once. Subsequent resolutions will return the same flows.
-                    flows = flowResolver.resolve(ctx).cache();
-                    ctx.setInternalAttribute(resolvedFlowAttribute, flows);
-                }
-
-                return flows;
+            if (flows == null) {
+                // Resolves the flows once. Subsequent resolutions will return the same flows.
+                flows = flowResolver.resolve(ctx).cache();
+                ctx.setInternalAttribute(resolvedFlowAttribute, flows);
             }
-        );
+
+            return flows;
+        });
     }
 
     /**

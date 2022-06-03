@@ -43,6 +43,7 @@ import io.gravitee.gateway.reactor.processor.transaction.TransactionProcessorFac
 import io.gravitee.gateway.report.ReporterService;
 import io.gravitee.node.api.Node;
 import io.gravitee.plugin.alert.AlertEventProducer;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,9 +59,27 @@ public class ReactorConfiguration {
     private static final String HEX_FORMAT = "hex";
 
     @Bean
-    public Reactor v3Reactor() {
+    public Reactor v3Reactor(
+        final EventManager eventManager,
+        final @Qualifier("v3EntrypointResolver") io.gravitee.gateway.reactor.handler.EntrypointResolver entrypointResolver,
+        final @Qualifier("reactorHandlerRegistry") ReactorHandlerRegistry reactorHandlerRegistry,
+        final GatewayConfiguration gatewayConfiguration,
+        final @Qualifier("v3RequestProcessorChainFactory") RequestProcessorChainFactory requestProcessorChainFactory,
+        final @Qualifier("v3ResponseProcessorChainFactory") ResponseProcessorChainFactory responseProcessorChainFactory,
+        final @Qualifier(
+            "v3NotFoundProcessorChainFactory"
+        ) io.gravitee.gateway.reactor.processor.NotFoundProcessorChainFactory notFoundProcessorChainFactory
+    ) {
         // DefaultReactor bean must be kept while we are still supporting v3 execution mode.
-        return new DefaultReactor();
+        return new DefaultReactor(
+            eventManager,
+            entrypointResolver,
+            reactorHandlerRegistry,
+            gatewayConfiguration,
+            requestProcessorChainFactory,
+            responseProcessorChainFactory,
+            notFoundProcessorChainFactory
+        );
     }
 
     @Bean
@@ -140,7 +159,7 @@ public class ReactorConfiguration {
     }
 
     @Bean
-    public ReactorHandlerRegistry reactorHandlerManager(ReactorHandlerFactoryManager reactorHandlerFactoryManager) {
+    public ReactorHandlerRegistry reactorHandlerRegistry(ReactorHandlerFactoryManager reactorHandlerFactoryManager) {
         return new DefaultReactorHandlerRegistry(reactorHandlerFactoryManager);
     }
 

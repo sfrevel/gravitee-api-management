@@ -152,7 +152,7 @@ public class PlatformConfiguration {
         io.gravitee.node.api.configuration.Configuration configuration,
         PlatformPolicyManager platformPolicyManager
     ) {
-        return new DefaultPolicyChainFactory("platform", configuration, platformPolicyManager);
+        return new DefaultPolicyChainFactory("platform", platformPolicyManager, configuration);
     }
 
     @Bean

@@ -83,6 +83,8 @@ public class DebugApiServiceImpl implements DebugApiService {
             );
 
             DebugApi debugApi = convert(debugApiEntity, apiId);
+            //Properly set debug execution mode from original api execution mode
+            debugApi.setExecutionMode(api.getExecutionMode());
 
             validatePlan(debugApi);
             validateDefinitionVersion(apiId, debugApi);
@@ -110,10 +112,9 @@ public class DebugApiServiceImpl implements DebugApiService {
         boolean hasValidPlan = debugApi
             .getPlans()
             .stream()
-            .anyMatch(
-                plan ->
-                    PlanStatus.STAGING.name().equalsIgnoreCase(plan.getStatus()) ||
-                    PlanStatus.PUBLISHED.name().equalsIgnoreCase(plan.getStatus())
+            .anyMatch(plan ->
+                PlanStatus.STAGING.name().equalsIgnoreCase(plan.getStatus()) ||
+                PlanStatus.PUBLISHED.name().equalsIgnoreCase(plan.getStatus())
             );
 
         if (!hasValidPlan) {
@@ -129,8 +130,8 @@ public class DebugApiServiceImpl implements DebugApiService {
         return startedInstances
             .stream()
             .filter(instanceEntity -> instanceEntity.getEnvironments().contains(api.getReferenceId()))
-            .filter(
-                instanceEntity -> instanceEntity.getPlugins().stream().map(PluginEntity::getId).anyMatch(debugPluginId::equalsIgnoreCase)
+            .filter(instanceEntity ->
+                instanceEntity.getPlugins().stream().map(PluginEntity::getId).anyMatch(debugPluginId::equalsIgnoreCase)
             )
             .filter(instanceEntity -> EnvironmentUtils.hasMatchingTags(ofNullable(instanceEntity.getTags()), api.getTags()))
             .max(Comparator.comparing(InstanceEntity::getStartedAt))

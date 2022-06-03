@@ -36,7 +36,6 @@ import io.gravitee.gateway.reactor.processor.RequestProcessorChainFactory;
 import io.gravitee.gateway.reactor.processor.ResponseProcessorChainFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
@@ -47,29 +46,31 @@ public class DefaultReactor extends AbstractService<Reactor> implements Reactor,
 
     private final Logger LOGGER = LoggerFactory.getLogger(DefaultReactor.class);
 
-    @Autowired
-    protected EventManager eventManager;
+    private final EventManager eventManager;
+    private final ReactorHandlerRegistry reactorHandlerRegistry;
+    private final GatewayConfiguration gatewayConfiguration;
+    private final RequestProcessorChainFactory requestProcessorChainFactory;
+    private final ResponseProcessorChainFactory responseProcessorChainFactory;
+    private final NotFoundProcessorChainFactory notFoundProcessorChainFactory;
+    private final EntrypointResolver entrypointResolver;
 
-    @Autowired
-    private ReactorHandlerRegistry reactorHandlerRegistry;
-
-    @Autowired
-    private EntrypointResolver entrypointResolver;
-
-    @Autowired
-    private GatewayConfiguration gatewayConfiguration;
-
-    @Autowired
-    @Qualifier("v3RequestProcessorChainFactory")
-    private RequestProcessorChainFactory requestProcessorChainFactory;
-
-    @Autowired
-    @Qualifier("v3ResponseProcessorChainFactory")
-    private ResponseProcessorChainFactory responseProcessorChainFactory;
-
-    @Autowired
-    @Qualifier("v3NotFoundProcessorChainFactory")
-    private NotFoundProcessorChainFactory notFoundProcessorChainFactory;
+    public DefaultReactor(
+        final EventManager eventManager,
+        final @Qualifier("v3EntrypointResolver") EntrypointResolver entrypointResolver,
+        final @Qualifier("reactorHandlerRegistry") ReactorHandlerRegistry reactorHandlerRegistry,
+        final GatewayConfiguration gatewayConfiguration,
+        final @Qualifier("v3RequestProcessorChainFactory") RequestProcessorChainFactory requestProcessorChainFactory,
+        final @Qualifier("v3ResponseProcessorChainFactory") ResponseProcessorChainFactory responseProcessorChainFactory,
+        final @Qualifier("v3NotFoundProcessorChainFactory") NotFoundProcessorChainFactory notFoundProcessorChainFactory
+    ) {
+        this.eventManager = eventManager;
+        this.entrypointResolver = entrypointResolver;
+        this.reactorHandlerRegistry = reactorHandlerRegistry;
+        this.gatewayConfiguration = gatewayConfiguration;
+        this.requestProcessorChainFactory = requestProcessorChainFactory;
+        this.responseProcessorChainFactory = responseProcessorChainFactory;
+        this.notFoundProcessorChainFactory = notFoundProcessorChainFactory;
+    }
 
     @Override
     public void route(Request serverRequest, Response serverResponse, Handler<ExecutionContext> handler) {
@@ -87,25 +88,23 @@ public class DefaultReactor extends AbstractService<Reactor> implements Reactor,
         // Prepare handler chain
         requestProcessorChainFactory
             .create()
-            .handler(
-                ctx -> {
-                    HandlerEntrypoint entrypoint = entrypointResolver.resolve(ctx);
+            .handler(ctx -> {
+                HandlerEntrypoint entrypoint = entrypointResolver.resolve(ctx);
 
-                    if (entrypoint != null) {
-                        entrypoint
-                            .target()
-                            .handle(
-                                ctx,
-                                context1 -> {
-                                    // Ensure that response has been ended before going further
-                                    context1.response().endHandler(avoid -> processResponse(context1, handler)).end();
-                                }
-                            );
-                    } else {
-                        processNotFound(ctx, handler);
-                    }
+                if (entrypoint != null) {
+                    entrypoint
+                        .target()
+                        .handle(
+                            ctx,
+                            context1 -> {
+                                // Ensure that response has been ended before going further
+                                context1.response().endHandler(avoid -> processResponse(context1, handler)).end();
+                            }
+                        );
+                } else {
+                    processNotFound(ctx, handler);
                 }
-            )
+            })
             .errorHandler(__ -> processResponse(context, handler))
             .exitHandler(__ -> processResponse(context, handler))
             .handle(context);

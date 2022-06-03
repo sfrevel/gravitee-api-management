@@ -26,6 +26,7 @@ import io.gravitee.gateway.jupiter.policy.adapter.context.ExecutionContextAdapte
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Maybe;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -97,15 +98,13 @@ public class PolicyAdapter implements Policy {
     }
 
     private Completable policyExecute(RequestExecutionContext ctx) {
-        return Completable.create(
-            emitter -> {
-                try {
-                    policy.execute(new PolicyChainAdapter(ctx, emitter), ExecutionContextAdapter.create(ctx));
-                } catch (Throwable t) {
-                    emitter.tryOnError(new Exception("An error occurred while trying to execute policy " + policy.id(), t));
-                }
+        return Completable.create(emitter -> {
+            try {
+                policy.execute(new PolicyChainAdapter(ctx, emitter), ExecutionContextAdapter.create(ctx));
+            } catch (Throwable t) {
+                emitter.tryOnError(new Exception("An error occurred while trying to execute policy " + policy.id(), t));
             }
-        );
+        });
     }
 
     private Completable policyStream(RequestExecutionContext ctx, ExecutionPhase phase) {

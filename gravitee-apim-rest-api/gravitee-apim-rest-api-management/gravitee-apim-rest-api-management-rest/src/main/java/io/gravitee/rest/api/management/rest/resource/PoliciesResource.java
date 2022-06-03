@@ -103,14 +103,12 @@ public class PoliciesResource {
             .getPolicyVisitors()
             .stream()
             .filter(operationVisitor -> operationVisitor.display())
-            .map(
-                operationVisitor -> {
-                    PolicyListItem item = new PolicyListItem();
-                    item.setId(operationVisitor.getId());
-                    item.setName(operationVisitor.getName());
-                    return item;
-                }
-            )
+            .map(operationVisitor -> {
+                PolicyListItem item = new PolicyListItem();
+                item.setId(operationVisitor.getId());
+                item.setName(operationVisitor.getName());
+                return item;
+            })
             .sorted(Comparator.comparing(PolicyListItem::getName))
             .collect(Collectors.toList());
     }
@@ -128,7 +126,7 @@ public class PoliciesResource {
             item.setOnRequest(development.getOnRequestMethod() != null);
             item.setOnResponse(development.getOnResponseMethod() != null);
         } else {
-            item.setOnRequest(false);
+            item.setOnRequest(true);
             item.setOnResponse(false);
         }
         return item;

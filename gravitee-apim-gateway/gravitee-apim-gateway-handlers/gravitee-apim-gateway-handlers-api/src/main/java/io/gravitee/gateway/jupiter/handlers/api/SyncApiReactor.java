@@ -65,9 +65,9 @@ import org.slf4j.LoggerFactory;
  */
 public class SyncApiReactor extends AbstractLifecycleComponent<ReactorHandler> implements ApiReactor, ReactorHandler {
 
+    protected final Api api;
     private static final Logger log = LoggerFactory.getLogger(SyncApiReactor.class);
     protected static final String ATTR_INVOKER_SKIP = "invoker.skip";
-    private final Api api;
     private final ComponentProvider componentProvider;
     private final List<TemplateVariableProvider> templateVariableProviders;
     private final Invoker defaultInvoker;
@@ -289,20 +289,15 @@ public class SyncApiReactor extends AbstractLifecycleComponent<ReactorHandler> i
     }
 
     private Completable handleError(final RequestExecutionContext ctx, final Throwable throwable) {
-        return Completable.fromRunnable(
-            () -> {
-                log.error("Unexpected error while handling request", throwable);
-                if (ctx.request().metrics().getApiResponseTimeMs() > Integer.MAX_VALUE) {
-                    ctx
-                        .request()
-                        .metrics()
-                        .setApiResponseTimeMs(System.currentTimeMillis() - ctx.request().metrics().getApiResponseTimeMs());
-                }
-
-                ctx.response().status(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
-                ctx.response().reason(HttpResponseStatus.INTERNAL_SERVER_ERROR.reasonPhrase());
+        return Completable.fromRunnable(() -> {
+            log.error("Unexpected error while handling request", throwable);
+            if (ctx.request().metrics().getApiResponseTimeMs() > Integer.MAX_VALUE) {
+                ctx.request().metrics().setApiResponseTimeMs(System.currentTimeMillis() - ctx.request().metrics().getApiResponseTimeMs());
             }
-        );
+
+            ctx.response().status(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
+            ctx.response().reason(HttpResponseStatus.INTERNAL_SERVER_ERROR.reasonPhrase());
+        });
     }
 
     @Override

@@ -15,20 +15,32 @@
  */
 package io.gravitee.gateway.debug;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.gravitee.common.event.EventManager;
+import io.gravitee.common.http.IdGenerator;
 import io.gravitee.gateway.core.classloader.DefaultClassLoader;
 import io.gravitee.gateway.core.component.ComponentProvider;
 import io.gravitee.gateway.core.condition.ExpressionLanguageStringConditionEvaluator;
-import io.gravitee.gateway.debug.handlers.api.DebugApiContextHandlerFactory;
+import io.gravitee.gateway.debug.handlers.api.DebugApiReactorHandlerFactory;
 import io.gravitee.gateway.debug.platform.manager.DebugOrganizationManager;
 import io.gravitee.gateway.debug.policy.impl.PolicyDebugDecoratorFactoryCreator;
+import io.gravitee.gateway.debug.reactor.DebugReactor;
+import io.gravitee.gateway.debug.reactor.processor.DebugResponseProcessorChainFactory;
+import io.gravitee.gateway.debug.vertx.VertxDebugHttpClientConfiguration;
 import io.gravitee.gateway.debug.vertx.VertxDebugService;
+import io.gravitee.gateway.env.GatewayConfiguration;
 import io.gravitee.gateway.flow.FlowPolicyResolverFactory;
 import io.gravitee.gateway.flow.FlowResolver;
 import io.gravitee.gateway.flow.policy.PolicyChainFactory;
 import io.gravitee.gateway.handlers.api.definition.Api;
+import io.gravitee.gateway.jupiter.debug.DebugReactorEventListener;
+import io.gravitee.gateway.jupiter.debug.reactor.DebugHttpRequestDispatcher;
+import io.gravitee.gateway.jupiter.debug.reactor.processor.DebugPlatformProcessorChainFactory;
 import io.gravitee.gateway.jupiter.handlers.api.processor.ApiProcessorChainFactory;
 import io.gravitee.gateway.jupiter.policy.PolicyFactory;
+import io.gravitee.gateway.jupiter.reactor.HttpRequestDispatcher;
+import io.gravitee.gateway.jupiter.reactor.processor.NotFoundProcessorChainFactory;
+import io.gravitee.gateway.jupiter.reactor.processor.PlatformProcessorChainFactory;
 import io.gravitee.gateway.platform.OrganizationFlowResolver;
 import io.gravitee.gateway.platform.PlatformPolicyManager;
 import io.gravitee.gateway.platform.manager.OrganizationManager;
@@ -39,19 +51,26 @@ import io.gravitee.gateway.policy.PolicyChainProviderLoader;
 import io.gravitee.gateway.policy.PolicyConfigurationFactory;
 import io.gravitee.gateway.policy.PolicyPluginFactory;
 import io.gravitee.gateway.policy.impl.PolicyFactoryCreatorImpl;
+import io.gravitee.gateway.reactor.Reactor;
 import io.gravitee.gateway.reactor.handler.EntrypointResolver;
 import io.gravitee.gateway.reactor.handler.ReactorHandlerFactory;
 import io.gravitee.gateway.reactor.handler.ReactorHandlerFactoryManager;
 import io.gravitee.gateway.reactor.handler.ReactorHandlerRegistry;
 import io.gravitee.gateway.reactor.handler.impl.DefaultEntrypointResolver;
 import io.gravitee.gateway.reactor.handler.impl.DefaultReactorHandlerRegistry;
+import io.gravitee.gateway.reactor.processor.RequestProcessorChainFactory;
+import io.gravitee.gateway.reactor.processor.ResponseProcessorChainFactory;
+import io.gravitee.gateway.report.ReporterService;
 import io.gravitee.gateway.resource.ResourceLifecycleManager;
 import io.gravitee.node.api.Node;
+import io.gravitee.plugin.alert.AlertEventProducer;
 import io.gravitee.plugin.core.api.ConfigurablePluginManager;
 import io.gravitee.plugin.policy.PolicyClassLoaderFactory;
 import io.gravitee.plugin.policy.PolicyPlugin;
+import io.gravitee.repository.management.api.EventRepository;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -97,7 +116,7 @@ public class DebugConfiguration {
         @Qualifier("debugPolicyChainProviderLoader") PolicyChainProviderLoader policyChainProviderLoader,
         ApiProcessorChainFactory apiProcessorChainFactory
     ) {
-        return new DebugApiContextHandlerFactory(
+        return new DebugApiReactorHandlerFactory(
             applicationContext.getParent(),
             configuration,
             node,
@@ -109,22 +128,21 @@ public class DebugConfiguration {
     }
 
     @Bean
-    @Qualifier("debugReactorHandlerFactoryManager")
-    public ReactorHandlerFactoryManager reactorHandlerFactoryManager(
+    public ReactorHandlerFactoryManager debugReactorHandlerFactoryManager(
         @Qualifier("debugReactorHandlerFactory") ReactorHandlerFactory reactorHandlerFactory
     ) {
         return new ReactorHandlerFactoryManager(reactorHandlerFactory);
     }
 
     @Bean
-    @Qualifier("debugReactorHandlerRegistry")
-    public ReactorHandlerRegistry reactorHandlerRegistry(ReactorHandlerFactoryManager reactorHandlerFactoryManager) {
+    public ReactorHandlerRegistry debugReactorHandlerRegistry(
+        @Qualifier("debugReactorHandlerFactoryManager") ReactorHandlerFactoryManager reactorHandlerFactoryManager
+    ) {
         return new DefaultReactorHandlerRegistry(reactorHandlerFactoryManager);
     }
 
     @Bean
-    @Qualifier("debugEntryPointResolver")
-    public EntrypointResolver reactorHandlerResolver(
+    public EntrypointResolver debugV3EntrypointResolver(
         @Qualifier("debugReactorHandlerRegistry") ReactorHandlerRegistry reactorHandlerRegistry
     ) {
         return new DefaultEntrypointResolver(reactorHandlerRegistry);
@@ -204,6 +222,112 @@ public class DebugConfiguration {
             policyClassLoaderFactory,
             resourceLifecycleManager,
             componentProvider
+        );
+    }
+
+    @Bean
+    public ResponseProcessorChainFactory debugResponseProcessorChainFactory(EventRepository eventRepository, ObjectMapper objectMapper) {
+        return new DebugResponseProcessorChainFactory(eventRepository, objectMapper);
+    }
+
+    @Bean
+    public Reactor debugReactor(
+        final EventManager eventManager,
+        final @Qualifier("debugV3EntrypointResolver") io.gravitee.gateway.reactor.handler.EntrypointResolver entrypointResolver,
+        final @Qualifier("debugReactorHandlerRegistry") ReactorHandlerRegistry reactorHandlerRegistry,
+        final GatewayConfiguration gatewayConfiguration,
+        final @Qualifier("v3RequestProcessorChainFactory") RequestProcessorChainFactory requestProcessorChainFactory,
+        final @Qualifier("debugResponseProcessorChainFactory") ResponseProcessorChainFactory responseProcessorChainFactory,
+        final @Qualifier(
+            "v3NotFoundProcessorChainFactory"
+        ) io.gravitee.gateway.reactor.processor.NotFoundProcessorChainFactory notFoundProcessorChainFactory
+    ) {
+        return new DebugReactor(
+            eventManager,
+            entrypointResolver,
+            reactorHandlerRegistry,
+            gatewayConfiguration,
+            requestProcessorChainFactory,
+            responseProcessorChainFactory,
+            notFoundProcessorChainFactory
+        );
+    }
+
+    @Bean
+    public DebugReactorEventListener debugReactorEventListener(
+        final io.vertx.reactivex.core.Vertx vertx,
+        final EventManager eventManager,
+        final EventRepository eventRepository,
+        final ObjectMapper objectMapper,
+        final VertxDebugHttpClientConfiguration debugHttpClientConfiguration,
+        @Qualifier("debugReactorHandlerRegistry") final ReactorHandlerRegistry reactorHandlerRegistry
+    ) {
+        return new DebugReactorEventListener(
+            vertx,
+            eventManager,
+            eventRepository,
+            objectMapper,
+            debugHttpClientConfiguration,
+            reactorHandlerRegistry
+        );
+    }
+
+    @Bean
+    public io.gravitee.gateway.jupiter.reactor.handler.EntrypointResolver debugEntrypointResolver(
+        @Qualifier("debugReactorHandlerRegistry") ReactorHandlerRegistry debugReactorHandlerRegistry
+    ) {
+        return new io.gravitee.gateway.jupiter.reactor.handler.DefaultEntrypointResolver(debugReactorHandlerRegistry);
+    }
+
+    @Bean
+    public PlatformProcessorChainFactory debugPlatformProcessorChainFactory(
+        io.gravitee.gateway.jupiter.reactor.processor.transaction.TransactionProcessorFactory transactionHandlerFactory,
+        @Value("${handlers.request.trace-context.enabled:false}") boolean traceContext,
+        ReporterService reporterService,
+        AlertEventProducer eventProducer,
+        Node node,
+        @Value("${http.port:8082}") String httpPort,
+        @Value("${services.tracing.enabled:false}") boolean tracing,
+        EventRepository eventRepository,
+        ObjectMapper objectMapper
+    ) {
+        return new DebugPlatformProcessorChainFactory(
+            transactionHandlerFactory,
+            traceContext,
+            reporterService,
+            eventProducer,
+            node,
+            httpPort,
+            tracing,
+            eventRepository,
+            objectMapper
+        );
+    }
+
+    @Bean
+    public HttpRequestDispatcher debugHttpRequestDispatcher(
+        EventManager eventManager,
+        GatewayConfiguration gatewayConfiguration,
+        @Qualifier("debugReactorHandlerRegistry") ReactorHandlerRegistry reactorHandlerRegistry,
+        @Qualifier("debugEntrypointResolver") io.gravitee.gateway.jupiter.reactor.handler.EntrypointResolver entrypointResolver,
+        IdGenerator idGenerator,
+        RequestProcessorChainFactory v3RequestProcessorChainFactory,
+        ResponseProcessorChainFactory v3ResponseProcessorChainFactory,
+        @Qualifier("debugPlatformProcessorChainFactory") PlatformProcessorChainFactory debugPlatformProcessorChainFactory,
+        NotFoundProcessorChainFactory notFoundProcessorChainFactory,
+        @Value("${services.tracing.enabled:false}") boolean tracingEnabled
+    ) {
+        return new DebugHttpRequestDispatcher(
+            eventManager,
+            gatewayConfiguration,
+            reactorHandlerRegistry,
+            entrypointResolver,
+            idGenerator,
+            v3RequestProcessorChainFactory,
+            v3ResponseProcessorChainFactory,
+            debugPlatformProcessorChainFactory,
+            notFoundProcessorChainFactory,
+            tracingEnabled
         );
     }
 }
