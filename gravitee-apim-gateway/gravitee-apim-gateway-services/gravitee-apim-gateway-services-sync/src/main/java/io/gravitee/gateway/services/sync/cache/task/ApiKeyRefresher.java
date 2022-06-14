@@ -62,7 +62,7 @@ public abstract class ApiKeyRefresher implements Callable<Result<Boolean>> {
     }
 
     protected void saveOrUpdate(ApiKey apiKey) {
-        if (apiKey.isRevoked() || apiKey.isPaused() || apiKey.getSubscriptionStatus() != ACCEPTED) {
+        if (apiKey.isRevoked() || apiKey.isPaused() || apiKey.getSubscriptionStatus() != ACCEPTED || !apiKey.isSubscriptionStarted()) {
             cache.remove(apiKey);
         } else {
             cache.put(apiKey);

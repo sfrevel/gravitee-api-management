@@ -16,6 +16,8 @@
 package io.gravitee.gateway.handlers.api.definition;
 
 import io.gravitee.repository.management.model.Subscription;
+import java.util.Calendar;
+import java.util.Date;
 
 /**
  * @author GraviteeSource Team
@@ -26,6 +28,7 @@ public class ApiKey extends io.gravitee.repository.management.model.ApiKey {
     private final String api;
     private final String subscription;
     private final Subscription.Status subscriptionStatus;
+    private final Date subscriptionStartDate;
 
     public ApiKey(io.gravitee.repository.management.model.ApiKey key, Subscription subscription) {
         super(key);
@@ -33,6 +36,7 @@ public class ApiKey extends io.gravitee.repository.management.model.ApiKey {
         this.api = subscription.getApi();
         this.subscription = subscription.getId();
         this.subscriptionStatus = subscription.getStatus();
+        this.subscriptionStartDate = subscription.getStartingAt();
     }
 
     @SuppressWarnings("removal")
@@ -52,5 +56,9 @@ public class ApiKey extends io.gravitee.repository.management.model.ApiKey {
 
     public Subscription.Status getSubscriptionStatus() {
         return subscriptionStatus;
+    }
+
+    public boolean isSubscriptionStarted() {
+        return subscriptionStartDate == null || Calendar.getInstance().getTime().after(subscriptionStartDate);
     }
 }

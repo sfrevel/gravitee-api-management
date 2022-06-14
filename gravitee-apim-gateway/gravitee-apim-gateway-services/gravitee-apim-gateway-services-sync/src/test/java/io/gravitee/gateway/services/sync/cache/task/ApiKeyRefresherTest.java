@@ -25,6 +25,9 @@ import io.gravitee.repository.management.api.SubscriptionRepository;
 import io.gravitee.repository.management.api.search.ApiKeyCriteria;
 import io.gravitee.repository.management.model.ApiKey;
 import io.gravitee.repository.management.model.Subscription;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import org.junit.Before;
@@ -61,24 +64,26 @@ public class ApiKeyRefresherTest {
         ApiKeyCriteria apiKeyCriteria = mock(ApiKeyCriteria.class);
 
         List<ApiKey> apiKeysList = List.of(
-            buildTestApiKey("key-1", List.of("sub-1", "sub-2", "sub-3")),
+            buildTestApiKey("key-1", List.of("sub-1", "sub-2", "sub-3", "sub-6")),
             buildTestApiKey("key-2", List.of("sub-1", "sub-4"), true, false),
             buildTestApiKey("key-3", List.of()),
             buildTestApiKey("key-4", List.of("sub-1", "sub-4", "sub-5")),
             buildTestApiKey("key-5", List.of("sub-1", "sub-4"), false, true),
-            buildTestApiKey("key-6", List.of("sub-unknown"))
+            buildTestApiKey("key-6", List.of("sub-unknown")),
+            buildTestApiKey("key-7", List.of("sub-6"))
         );
 
         when(apiKeyRepository.findByCriteria(apiKeyCriteria)).thenReturn(apiKeysList);
 
-        when(subscriptionRepository.findByIdIn(Set.of("sub-1", "sub-2", "sub-3", "sub-4", "sub-5", "sub-unknown")))
+        when(subscriptionRepository.findByIdIn(Set.of("sub-1", "sub-2", "sub-3", "sub-4", "sub-5", "sub-unknown", "sub-6")))
             .thenReturn(
                 List.of(
-                    buildTestSubscription("sub-1", CLOSED),
-                    buildTestSubscription("sub-2", ACCEPTED),
-                    buildTestSubscription("sub-3", REJECTED),
-                    buildTestSubscription("sub-4", ACCEPTED),
-                    buildTestSubscription("sub-5", ACCEPTED)
+                    buildTestSubscription("sub-1", CLOSED, LocalDate.now().minusDays(1)),
+                    buildTestSubscription("sub-2", ACCEPTED, LocalDate.now().minusDays(1)),
+                    buildTestSubscription("sub-3", REJECTED, LocalDate.now().minusDays(1)),
+                    buildTestSubscription("sub-4", ACCEPTED, LocalDate.now().minusDays(1)),
+                    buildTestSubscription("sub-5", ACCEPTED, LocalDate.now().minusDays(1)),
+                    buildTestSubscription("sub-6", ACCEPTED, LocalDate.now().plusDays(1))
                 )
             );
 
@@ -98,6 +103,10 @@ public class ApiKeyRefresherTest {
         verify(cache, times(1)).remove(argThat(apiKey -> apiKey.getId().equals("key-5") && apiKey.getSubscription().equals("sub-1")));
         verify(cache, times(1)).remove(argThat(apiKey -> apiKey.getId().equals("key-5") && apiKey.getSubscription().equals("sub-4")));
 
+        // those API keys have been removed from cache because their subscription is active but not yet started
+        verify(cache, times(1)).remove(argThat(apiKey -> apiKey.getId().equals("key-1") && apiKey.getSubscription().equals("sub-6")));
+        verify(cache, times(1)).remove(argThat(apiKey -> apiKey.getId().equals("key-7") && apiKey.getSubscription().equals("sub-6")));
+
         verifyNoMoreInteractions(cache);
     }
 
@@ -114,10 +123,11 @@ public class ApiKeyRefresherTest {
         return apiKey;
     }
 
-    private Subscription buildTestSubscription(String id, Subscription.Status status) {
+    private Subscription buildTestSubscription(String id, Subscription.Status status, LocalDate startDate) {
         Subscription subscription = new Subscription();
         subscription.setId(id);
         subscription.setStatus(status);
+        subscription.setStartingAt(Date.from(startDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant()));
         return subscription;
     }
 }
