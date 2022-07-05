@@ -3,6 +3,12 @@
 You think Gravitee.io is awesome and you'd like to contribute?
 Here are some guidelines that should help you get started.
 
+== Prerequisite
+As we use Prettier to format our source code, we added a git hook to analyze and format every commit.
+To configure this hook, we use this tool: https://pre-commit.com/.
+
+
+
 == Using GitHub issues
 
 We use GitHub issues to track bugs and enhancements. Found a bug in the source code? Want to propose new features or enhancements?
