@@ -214,7 +214,7 @@ commands:
 parameters:
     gio_action:
         type: enum
-        enum: [release, package_bundle, nexus_staging, pull_requests, build_rpm_&_docker_images]
+        enum: [release, package_bundle, nexus_staging, pull_requests, build_rpm_&_docker_images, announce-release]
         default: pull_requests
     dry_run:
         type: boolean
@@ -630,10 +630,10 @@ jobs:
             - artifactory-orb/install
             - artifactory-orb/configure
             - run:
-                name: Update Build version
-                command: |
-                  sed -i "s/-SNAPSHOT//" dist/build.json
-                working_directory: << parameters.apim-ui-project >>
+                  name: Update Build version
+                  command: |
+                      sed -i "s/-SNAPSHOT//" dist/build.json
+                  working_directory: << parameters.apim-ui-project >>
             - run:
                   name: Rename and zip dist folder
                   command: mv dist << parameters.apim-ui-project >>-${APIM_VERSION%-SNAPSHOT} && zip -r dist.zip << parameters.apim-ui-project >>-${APIM_VERSION%-SNAPSHOT}
@@ -675,9 +675,9 @@ jobs:
             - webui-install:
                   apim-ui-project: << parameters.apim-ui-project >>
             - run:
-                name: Update Build version
-                command: |
-                  sed -i -E "s/\"version\": \"(.*)\"/\"version\": \"${APIM_VERSION}\"/" << parameters.apim-ui-project >>/build.json
+                  name: Update Build version
+                  command: |
+                      sed -i -E "s/\"version\": \"(.*)\"/\"version\": \"${APIM_VERSION}\"/" << parameters.apim-ui-project >>/build.json
             - run:
                   name: Build
                   command: npm run build:prod
@@ -934,24 +934,23 @@ jobs:
     ## Release Jobs
     announce-release:
         docker:
-          - image: cimg/base:stable
+            - image: cimg/base:stable
         resource_class: small
         steps:
-          - slack/notify:
-              channel: 'C02JENTV2AX'
-              event: always
-              custom: |
-                {
-                  "blocks": [
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "🚀 Starting << pipeline.parameters.graviteeio_version >> release"
+            - slack/notify:
+                  event: always
+                  custom: |
+                      {
+                        "blocks": [
+                          {
+                            "type": "section",
+                            "text": {
+                              "type": "mrkdwn",
+                              "text": "🚀 Starting << pipeline.parameters.graviteeio_version >> release"
+                            }
+                          }
+                        ]
                       }
-                    }
-                  ]
-                }
 
     backend-build-and-publish-artifactory:
         docker:
@@ -1020,7 +1019,7 @@ jobs:
                       # Remove `-SNAPSHOT` from source
                       # Backend
                       sed -i "s#<changelist>.*</changelist>#<changelist></changelist>#" pom.xml
-                      
+
                       # UI
                       sed -i -E "s/\"version\": \"(.*)\"/\"version\": \"${MVN_PRJ_VERSION}\"/" gravitee-apim-console-webui/build.json
                       sed -i -E "s/\"version\": \"(.*)\"/\"version\": \"${MVN_PRJ_VERSION}\"/" gravitee-apim-portal-webui/build.json
@@ -1671,6 +1670,13 @@ workflows:
             equal: [package_bundle, << pipeline.parameters.gio_action >>]
         jobs:
             - package-bundle:
+                  context: cicd-orchestrator
+
+    announce-release:
+        when:
+            equal: [announce-release, << pipeline.parameters.gio_action >>]
+        jobs:
+            - announce-release:
                   context: cicd-orchestrator
     # ---
     # Workflow For APIM Orchestrated Nexus Staging
