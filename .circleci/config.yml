@@ -937,7 +937,11 @@ jobs:
             - image: cimg/base:stable
         resource_class: small
         steps:
+            - keeper/env-export:
+                  secret-url: keeper://ZOz4db245GNaETVwmPBk8w/field/password
+                  var-name: SLACK_ACCESS_TOKEN
             - slack/notify:
+                  channel: C02JENTV2AX
                   event: always
                   custom: |
                       {
