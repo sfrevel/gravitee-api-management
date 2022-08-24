@@ -42,6 +42,7 @@ import io.gravitee.rest.api.service.exceptions.ApiRunningStateException;
 import io.gravitee.rest.api.service.jackson.filter.ApiPermissionFilter;
 import io.gravitee.rest.api.service.notification.ApiHook;
 import io.gravitee.rest.api.service.search.SearchEngineService;
+import io.gravitee.rest.api.service.v4.mapper.CategoryMapper;
 import java.util.Collections;
 import java.util.Optional;
 import org.junit.Before;
@@ -49,6 +50,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -129,7 +131,10 @@ public class ApiService_DeleteTest {
     private ApiMetadataService apiMetadataService;
 
     @Spy
-    private ApiConverter apiConverter;
+    private CategoryMapper categoryMapper = new CategoryMapper(mock(CategoryService.class));
+
+    @InjectMocks
+    private ApiConverter apiConverter = Mockito.spy(new ApiConverter());
 
     @Before
     public void setUp() {

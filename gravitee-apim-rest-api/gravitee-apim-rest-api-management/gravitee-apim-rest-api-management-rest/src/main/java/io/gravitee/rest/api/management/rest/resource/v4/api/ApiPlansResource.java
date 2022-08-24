@@ -32,7 +32,7 @@ import io.gravitee.rest.api.management.rest.security.Permissions;
 import io.gravitee.rest.api.model.Visibility;
 import io.gravitee.rest.api.model.permissions.RolePermission;
 import io.gravitee.rest.api.model.permissions.RolePermissionAction;
-import io.gravitee.rest.api.model.v4.api.ApiEntity;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
 import io.gravitee.rest.api.model.v4.plan.NewPlanEntity;
 import io.gravitee.rest.api.model.v4.plan.PlanEntity;
 import io.gravitee.rest.api.model.v4.plan.PlanSecurityType;
@@ -42,9 +42,7 @@ import io.gravitee.rest.api.service.GroupService;
 import io.gravitee.rest.api.service.common.ExecutionContext;
 import io.gravitee.rest.api.service.common.GraviteeContext;
 import io.gravitee.rest.api.service.exceptions.ForbiddenAccessException;
-import io.gravitee.rest.api.service.v4.ApiService;
 import io.gravitee.rest.api.service.v4.PlanService;
-import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.Explode;
@@ -120,7 +118,7 @@ public class ApiPlansResource extends AbstractResource {
             throw new ForbiddenAccessException();
         }
 
-        ApiEntity apiEntity = apiServiceV4.findById(executionContext, apiId);
+        GenericApiEntity genericApiEntity = apiSearchService.findGenericById(executionContext, apiId);
 
         return planService
             .findByApi(executionContext, apiId)
@@ -130,7 +128,11 @@ public class ApiPlansResource extends AbstractResource {
                     wishedStatus.contains(plan.getStatus()) &&
                     (
                         (isAuthenticated() && isAdmin()) ||
-                        groupService.isUserAuthorizedToAccessApiData(apiEntity, plan.getExcludedGroups(), getAuthenticatedUserOrNull())
+                        groupService.isUserAuthorizedToAccessApiData(
+                            genericApiEntity,
+                            plan.getExcludedGroups(),
+                            getAuthenticatedUserOrNull()
+                        )
                     )
             )
             .filter(plan -> security == null || security.contains(PlanSecurityType.valueOfLabel(plan.getSecurity().getType())))
