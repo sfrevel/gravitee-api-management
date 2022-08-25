@@ -116,6 +116,7 @@ import io.gravitee.rest.api.service.v4.ApiSearchService;
 import io.gravitee.rest.api.service.v4.ApiService;
 import io.gravitee.rest.api.service.v4.ApiStateService;
 import io.gravitee.rest.api.service.v4.FlowService;
+import io.gravitee.rest.api.service.v4.PlanSearchService;
 import io.gravitee.rest.api.service.v4.PlanService;
 import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
 import io.gravitee.rest.api.service.v4.PropertiesService;
@@ -209,6 +210,9 @@ public class ApiServiceImplTest {
     private PlanService planService;
 
     @Mock
+    private PlanSearchService planSearchService;
+
+    @Mock
     private SubscriptionService subscriptionService;
 
     @Mock
@@ -285,7 +289,6 @@ public class ApiServiceImplTest {
             new ApiServiceImpl(
                 apiRepository,
                 apiMapper,
-                genericApiMapper,
                 primaryOwnerService,
                 apiValidationService,
                 parameterService,
@@ -297,6 +300,7 @@ public class ApiServiceImplTest {
                 flowService,
                 searchEngineService,
                 planService,
+                planSearchService,
                 subscriptionService,
                 eventService,
                 pageService,

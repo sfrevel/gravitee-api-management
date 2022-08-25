@@ -36,11 +36,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.stereotype.Component;
 
 /**
  * @author Guillaume LAMIRAND (guillaume.lamirand at graviteesource.com)
  * @author GraviteeSource Team
  */
+@Component
 public class ApiTemplateServiceImpl implements ApiTemplateService {
 
     private final ApiSearchService apiSearchService;

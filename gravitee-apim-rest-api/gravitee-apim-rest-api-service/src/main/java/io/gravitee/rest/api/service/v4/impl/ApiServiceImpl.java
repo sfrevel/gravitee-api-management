@@ -34,6 +34,7 @@ import io.gravitee.definition.model.v4.plan.PlanStatus;
 import io.gravitee.repository.exceptions.TechnicalException;
 import io.gravitee.repository.management.api.ApiQualityRuleRepository;
 import io.gravitee.repository.management.api.ApiRepository;
+import io.gravitee.repository.management.api.search.ApiCriteria;
 import io.gravitee.repository.management.model.Api;
 import io.gravitee.repository.management.model.ApiLifecycleState;
 import io.gravitee.repository.management.model.Event;
@@ -60,6 +61,7 @@ import io.gravitee.rest.api.model.v4.api.ApiEntity;
 import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
 import io.gravitee.rest.api.model.v4.api.NewApiEntity;
 import io.gravitee.rest.api.model.v4.api.UpdateApiEntity;
+import io.gravitee.rest.api.model.v4.plan.GenericPlanEntity;
 import io.gravitee.rest.api.model.v4.plan.PlanEntity;
 import io.gravitee.rest.api.service.AlertService;
 import io.gravitee.rest.api.service.ApiMetadataService;
@@ -89,6 +91,7 @@ import io.gravitee.rest.api.service.search.SearchEngineService;
 import io.gravitee.rest.api.service.v4.ApiNotificationService;
 import io.gravitee.rest.api.service.v4.ApiService;
 import io.gravitee.rest.api.service.v4.FlowService;
+import io.gravitee.rest.api.service.v4.PlanSearchService;
 import io.gravitee.rest.api.service.v4.PlanService;
 import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
 import io.gravitee.rest.api.service.v4.PropertiesService;
@@ -121,7 +124,6 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
 
     private final ApiRepository apiRepository;
     private final ApiMapper apiMapper;
-    private final GenericApiMapper indexableApiMapper;
     private final PrimaryOwnerService primaryOwnerService;
     private final ApiValidationService apiValidationService;
     private final ParameterService parameterService;
@@ -133,6 +135,7 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
     private final FlowService flowService;
     private final SearchEngineService searchEngineService;
     private final PlanService planService;
+    private final PlanSearchService planSearchService;
     private final SubscriptionService subscriptionService;
     private final EventService eventService;
     private final PageService pageService;
@@ -147,7 +150,6 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
     public ApiServiceImpl(
         @Lazy final ApiRepository apiRepository,
         final ApiMapper apiMapper,
-        final GenericApiMapper genericApiMapper,
         final PrimaryOwnerService primaryOwnerService,
         final ApiValidationService apiValidationService,
         final ParameterService parameterService,
@@ -159,6 +161,7 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
         final FlowService flowService,
         @Lazy final SearchEngineService searchEngineService,
         final PlanService planService,
+        final PlanSearchService planSearchService,
         @Lazy final SubscriptionService subscriptionService,
         final EventService eventService,
         @Lazy final PageService pageService,
@@ -172,7 +175,6 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
     ) {
         this.apiRepository = apiRepository;
         this.apiMapper = apiMapper;
-        this.indexableApiMapper = genericApiMapper;
         this.primaryOwnerService = primaryOwnerService;
         this.apiValidationService = apiValidationService;
         this.parameterService = parameterService;
@@ -184,6 +186,7 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
         this.flowService = flowService;
         this.searchEngineService = searchEngineService;
         this.planService = planService;
+        this.planSearchService = planSearchService;
         this.subscriptionService = subscriptionService;
         this.eventService = eventService;
         this.pageService = pageService;
@@ -328,11 +331,11 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
             this.propertiesService.encryptProperties(updateApiEntity.getProperties());
 
             if (io.gravitee.rest.api.model.api.ApiLifecycleState.DEPRECATED == updateApiEntity.getLifecycleState()) {
-                planService
+                planSearchService
                     .findByApi(executionContext, apiId)
                     .forEach(
                         plan -> {
-                            if (PlanStatus.PUBLISHED == plan.getStatus() || PlanStatus.STAGING == plan.getStatus()) {
+                            if (PlanStatus.PUBLISHED == plan.getPlanStatus() || PlanStatus.STAGING == plan.getPlanStatus()) {
                                 planService.deprecate(executionContext, plan.getId(), true);
                                 updateApiEntity
                                     .getPlans()
@@ -464,7 +467,7 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
                 Set<String> plansNotClosed = plans
                     .stream()
                     .filter(plan -> plan.getStatus() == PlanStatus.PUBLISHED)
-                    .map(PlanEntity::getName)
+                    .map(GenericPlanEntity::getName)
                     .collect(toSet());
 
                 if (!plansNotClosed.isEmpty()) {

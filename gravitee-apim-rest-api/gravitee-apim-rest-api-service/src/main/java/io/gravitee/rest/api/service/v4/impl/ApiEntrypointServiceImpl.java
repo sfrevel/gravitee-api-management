@@ -38,38 +38,35 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 /**
  * @author Guillaume LAMIRAND (guillaume.lamirand at graviteesource.com)
  * @author GraviteeSource Team
  */
+@Component
+@Slf4j
 public class ApiEntrypointServiceImpl implements ApiEntrypointService {
 
     private static final Pattern DUPLICATE_SLASH_REMOVER = Pattern.compile("(?<!(http:|https:))[//]+");
     // RFC 6454 section-7.1, serialized-origin regex from RFC 3986
     private static final String URI_PATH_SEPARATOR = "/";
 
-    private final ApiSearchService apiSearchService;
     private final ParameterService parameterService;
     private final EntrypointService entrypointService;
 
-    public ApiEntrypointServiceImpl(
-        final ApiSearchService apiSearchService,
-        final ParameterService parameterService,
-        final EntrypointService entrypointService
-    ) {
-        this.apiSearchService = apiSearchService;
+    public ApiEntrypointServiceImpl(final ParameterService parameterService, final EntrypointService entrypointService) {
         this.parameterService = parameterService;
         this.entrypointService = entrypointService;
     }
 
     @Override
-    public List<ApiEntrypointEntity> getApiEntrypoints(final ExecutionContext executionContext, final String apiId) {
+    public List<ApiEntrypointEntity> getApiEntrypoints(final ExecutionContext executionContext, final GenericApiEntity genericApiEntity) {
         List<ApiEntrypointEntity> apiEntrypoints = new ArrayList<>();
-        GenericApiEntity genericApiEntity = apiSearchService.findGenericById(executionContext, apiId);
 
-        List<EntrypointEntity> organizationEntrypoints = entrypointService.findAll(executionContext);
         if (genericApiEntity.getTags() != null && !genericApiEntity.getTags().isEmpty()) {
+            List<EntrypointEntity> organizationEntrypoints = entrypointService.findAll(executionContext);
             organizationEntrypoints.forEach(
                 entrypoint -> {
                     final String entrypointScheme = getScheme(entrypoint.getValue());

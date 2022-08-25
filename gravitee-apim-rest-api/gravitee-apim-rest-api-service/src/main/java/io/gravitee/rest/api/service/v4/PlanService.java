@@ -31,13 +31,9 @@ import java.util.Set;
  * @author GraviteeSource Team
  */
 public interface PlanService {
-    PlanEntity findById(final ExecutionContext executionContext, final String plan);
+    PlanEntity findById(ExecutionContext executionContext, String plan);
 
-    Set<PlanEntity> findByIdIn(final ExecutionContext executionContext, final Set<String> ids);
-
-    Set<PlanEntity> findByApi(final ExecutionContext executionContext, final String apiId);
-
-    List<PlanEntity> search(final ExecutionContext executionContext, final PlanQuery query);
+    Set<PlanEntity> findByApi(ExecutionContext executionContext, String api);
 
     PlanEntity create(final ExecutionContext executionContext, final NewPlanEntity plan);
 

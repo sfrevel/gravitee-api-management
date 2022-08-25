@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.gravitee.rest.api.service.impl;
+package io.gravitee.rest.api.service.v4.impl;
 
 import static org.mockito.Mockito.*;
 
@@ -23,23 +23,22 @@ import io.gravitee.repository.exceptions.TechnicalException;
 import io.gravitee.repository.management.api.ApiRepository;
 import io.gravitee.repository.management.model.Api;
 import io.gravitee.rest.api.model.EnvironmentEntity;
-import io.gravitee.rest.api.model.MemberEntity;
 import io.gravitee.rest.api.model.PrimaryOwnerEntity;
-import io.gravitee.rest.api.model.RoleEntity;
 import io.gravitee.rest.api.model.api.ApiEntity;
-import io.gravitee.rest.api.model.permissions.RoleScope;
 import io.gravitee.rest.api.service.*;
 import io.gravitee.rest.api.service.common.ExecutionContext;
-import io.gravitee.rest.api.service.configuration.flow.FlowService;
 import io.gravitee.rest.api.service.converter.ApiConverter;
+import io.gravitee.rest.api.service.impl.ApiServiceImpl;
 import io.gravitee.rest.api.service.v4.ApiNotificationService;
+import io.gravitee.rest.api.service.v4.ApiSearchService;
+import io.gravitee.rest.api.service.v4.ApiTagService;
 import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
-import io.gravitee.rest.api.service.v4.impl.PrimaryOwnerServiceImpl;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -50,10 +49,7 @@ import org.mockito.junit.MockitoJUnitRunner;
  * @author GraviteeSource Team
  */
 @RunWith(MockitoJUnitRunner.class)
-public class ApiService_DeleteTagsTest {
-
-    @InjectMocks
-    private final ApiService apiService = new ApiServiceImpl();
+public class ApiServiceTagsTest {
 
     @Mock
     EnvironmentService environmentService;
@@ -65,19 +61,17 @@ public class ApiService_DeleteTagsTest {
     AuditService auditService;
 
     @Mock
-    CategoryService categoryService;
-
-    @Mock
-    ApiConverter apiConverter;
-
-    @Mock
     ApiNotificationService apiNotificationService;
 
     @Mock
     ObjectMapper objectMapper;
 
-    @Mock
-    PrimaryOwnerService primaryOwnerService;
+    private ApiTagService apiTagService;
+
+    @Before
+    public void before() {
+        apiTagService = new ApiTagServiceImpl(apiRepository, environmentService, objectMapper, apiNotificationService, auditService);
+    }
 
     @Test
     public void shouldDeleteTags() throws TechnicalException, JsonProcessingException {
@@ -90,24 +84,16 @@ public class ApiService_DeleteTagsTest {
         api.setId("api-id");
         api.setDefinition("{\"tags\": [\"intranet\"]}");
 
-        final ApiEntity apiEntity = new ApiEntity();
-        apiEntity.setId(api.getId());
-        apiEntity.setTags(Set.of("intranet"));
-
         final io.gravitee.definition.model.Api apiDefinition = new io.gravitee.definition.model.Api();
-        apiDefinition.setTags(new HashSet<>(apiEntity.getTags()));
+        apiDefinition.setTags(new HashSet<>(Set.of("intranet")));
 
         when(environmentService.findByOrganization("DEFAULT")).thenReturn(List.of(environment));
         when(apiRepository.search(any())).thenReturn(List.of(api));
-        when(apiRepository.findById(any())).thenReturn(Optional.of(api));
-
-        when(primaryOwnerService.getPrimaryOwners(any(), anyList())).thenReturn(Map.of(api.getId(), new PrimaryOwnerEntity()));
-        when(apiConverter.toApiEntity(any(), any(), any(), any(), anyBoolean())).thenReturn(apiEntity);
 
         when(objectMapper.readValue(api.getDefinition(), io.gravitee.definition.model.Api.class)).thenReturn(apiDefinition);
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
-        apiService.deleteTagFromAPIs(executionContext, "intranet");
+        apiTagService.deleteTagFromAPIs(executionContext, "intranet");
 
         verify(apiRepository, times(1)).update(argThat(apiUpdate -> !apiUpdate.getDefinition().contains("intranet")));
     }

@@ -45,6 +45,7 @@ import io.gravitee.rest.api.service.search.SearchEngineService;
 import io.gravitee.rest.api.service.v4.mapper.CategoryMapper;
 import java.util.Collections;
 import java.util.Optional;
+import org.checkerframework.checker.units.qual.A;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -74,9 +75,6 @@ public class ApiService_DeleteTest {
     private ApiRepository apiRepository;
 
     @Mock
-    private Api api;
-
-    @Mock
     private PlanService planService;
 
     @Mock
@@ -84,9 +82,6 @@ public class ApiService_DeleteTest {
 
     @Mock
     private MembershipService membershipService;
-
-    @Mock
-    private PlanEntity planEntity;
 
     @Mock
     private EventService eventService;
@@ -136,26 +131,35 @@ public class ApiService_DeleteTest {
     @InjectMocks
     private ApiConverter apiConverter = Mockito.spy(new ApiConverter());
 
+    private Api api;
+    private PlanEntity planEntity;
+
     @Before
-    public void setUp() {
+    public void setUp() throws TechnicalException {
         PropertyFilter apiMembershipTypeFilter = new ApiPermissionFilter();
         objectMapper.setFilterProvider(
             new SimpleFilterProvider(Collections.singletonMap("apiMembershipTypeFilter", apiMembershipTypeFilter))
         );
+        api = new Api();
+        api.setId(API_ID);
+        planEntity = new PlanEntity();
+        planEntity.setId(PLAN_ID);
+        planEntity.setApi(API_ID);
+
+        lenient().when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
+        lenient().when(planService.findByApi(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(Collections.singleton(planEntity));
     }
 
     @Test(expected = ApiRunningStateException.class)
     public void shouldNotDeleteBecauseRunningState() throws TechnicalException {
-        when(api.getLifecycleState()).thenReturn(LifecycleState.STARTED);
-        when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
+        api.setLifecycleState(LifecycleState.STARTED);
 
         apiService.delete(GraviteeContext.getExecutionContext(), API_ID);
     }
 
     @Test
     public void shouldDeleteBecauseNoPlan() throws TechnicalException {
-        when(api.getLifecycleState()).thenReturn(LifecycleState.STOPPED);
-        when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
+        api.setLifecycleState(LifecycleState.STOPPED);
         when(planService.findByApi(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(Collections.emptySet());
 
         apiService.delete(GraviteeContext.getExecutionContext(), API_ID);
@@ -167,10 +171,8 @@ public class ApiService_DeleteTest {
 
     @Test(expected = ApiNotDeletableException.class)
     public void shouldNotDeleteBecausePlanNotClosed() throws TechnicalException {
-        when(api.getLifecycleState()).thenReturn(LifecycleState.STOPPED);
-        when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
-        when(planEntity.getStatus()).thenReturn(PlanStatus.PUBLISHED);
-        when(planService.findByApi(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(Collections.singleton(planEntity));
+        api.setLifecycleState(LifecycleState.STOPPED);
+        planEntity.setStatus(PlanStatus.PUBLISHED);
 
         apiService.delete(GraviteeContext.getExecutionContext(), API_ID);
         verify(membershipService, times(1)).deleteReference(GraviteeContext.getExecutionContext(), MembershipReferenceType.API, API_ID);
@@ -178,11 +180,8 @@ public class ApiService_DeleteTest {
 
     @Test
     public void shouldDeleteBecausePlanClosed() throws TechnicalException {
-        when(api.getLifecycleState()).thenReturn(LifecycleState.STOPPED);
-        when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
-        when(planEntity.getId()).thenReturn(PLAN_ID);
-        when(planEntity.getStatus()).thenReturn(PlanStatus.CLOSED);
-        when(planService.findByApi(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(Collections.singleton(planEntity));
+        api.setLifecycleState(LifecycleState.STOPPED);
+        planEntity.setStatus(PlanStatus.CLOSED);
 
         apiService.delete(GraviteeContext.getExecutionContext(), API_ID);
 
@@ -193,11 +192,8 @@ public class ApiService_DeleteTest {
 
     @Test
     public void shouldDeleteBecausePlanStaging() throws TechnicalException {
-        when(api.getLifecycleState()).thenReturn(LifecycleState.STOPPED);
-        when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
-        when(planEntity.getId()).thenReturn(PLAN_ID);
-        when(planEntity.getStatus()).thenReturn(PlanStatus.STAGING);
-        when(planService.findByApi(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(Collections.singleton(planEntity));
+        api.setLifecycleState(LifecycleState.STOPPED);
+        planEntity.setStatus(PlanStatus.STAGING);
 
         apiService.delete(GraviteeContext.getExecutionContext(), API_ID);
 
@@ -211,16 +207,8 @@ public class ApiService_DeleteTest {
 
     @Test
     public void shouldDeleteWithKubernetesOrigin() throws Exception {
-        final Api api = new Api();
-        api.setId(API_ID);
         api.setOrigin(Api.ORIGIN_KUBERNETES);
-
-        when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
-
-        final PlanEntity planEntity = new PlanEntity();
-        planEntity.setId(PLAN_ID);
         planEntity.setStatus(PlanStatus.PUBLISHED);
-        when(planService.findByApi(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(Collections.singleton(planEntity));
 
         apiService.delete(GraviteeContext.getExecutionContext(), API_ID);
 

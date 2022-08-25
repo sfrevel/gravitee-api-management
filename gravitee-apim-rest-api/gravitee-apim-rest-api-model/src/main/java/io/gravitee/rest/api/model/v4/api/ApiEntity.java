@@ -73,7 +73,7 @@ public class ApiEntity implements GenericApiEntity {
     private String apiVersion;
 
     @Schema(description = "API's gravitee definition version")
-    private DefinitionVersion definitionVersion;
+    private DefinitionVersion definitionVersion = DefinitionVersion.V4;
 
     @Schema(description = "API's type", example = "async")
     private ApiType type;
