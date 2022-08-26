@@ -58,12 +58,17 @@ public class FakeEntrypointConnector implements EntrypointConnector<RequestExecu
     }
 
     @Override
-    public Completable handleRequest(final RequestExecutionContext executionContext) {
+    public Completable handleRequest(final RequestExecutionContext ctx) {
         return Completable.complete();
     }
 
     @Override
     public Completable handleResponse(final RequestExecutionContext executionContext) {
+        return Completable.complete();
+    }
+
+    @Override
+    public Completable handleError(final RequestExecutionContext ctx, final Throwable throwable) {
         return Completable.complete();
     }
 }

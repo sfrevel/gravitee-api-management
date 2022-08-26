@@ -16,15 +16,18 @@
 package io.gravitee.plugin.entrypoint.sse;
 
 import static io.gravitee.common.http.MediaType.TEXT_EVENT_STREAM;
+import static io.gravitee.gateway.jupiter.api.context.ExecutionContext.ATTR_INTERNAL_EXECUTION_FAILURE;
 
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.jupiter.api.ApiType;
 import io.gravitee.gateway.jupiter.api.ConnectorMode;
+import io.gravitee.gateway.jupiter.api.ExecutionFailure;
 import io.gravitee.gateway.jupiter.api.connector.entrypoint.async.EntrypointAsyncConnector;
 import io.gravitee.gateway.jupiter.api.context.MessageExecutionContext;
 import io.gravitee.plugin.entrypoint.sse.model.SseEvent;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Single;
@@ -75,65 +78,81 @@ public class SseEntrypointConnector implements EntrypointAsyncConnector {
 
     @Override
     public Completable handleResponse(final MessageExecutionContext ctx) {
-        return Completable.defer(
-            () -> {
-                // set headers
-                ctx.response().headers().add(HttpHeaderNames.CONTENT_TYPE, "text/event-stream;charset=UTF-8");
-                ctx.response().headers().add(HttpHeaderNames.CONNECTION, "keep-alive");
-                ctx.response().headers().add(HttpHeaderNames.CACHE_CONTROL, "no-cache");
-                return ctx
-                    .response()
-                    .writeHeaders()
-                    .andThen(ctx.response().messages())
-                    .flatMapSingle(
-                        message -> {
-                            HashMap<String, Object> comments = new HashMap<>();
-                            if (message.headers() != null) {
-                                message.headers().toListValuesMap().forEach((key, value) -> comments.put(key, String.join(",", value)));
-                            }
-                            if (message.metadata() != null) {
-                                comments.putAll(message.metadata());
-                            }
-                            return ctx
-                                .response()
-                                .write(
-                                    Buffer.buffer(
-                                        SseEvent
-                                            .builder()
-                                            .id(UUID.randomUUID().toString())
-                                            .event("message")
-                                            .data(message.content().getBytes())
-                                            .comments(comments)
-                                            .build()
-                                            .format()
-                                    )
-                                )
-                                .andThen(ctx.response().write(Buffer.buffer("\n\n")))
-                                .andThen(Single.just(message));
-                        }
+        return Completable.defer(() -> {
+            // set headers
+            ctx.response().headers().add(HttpHeaderNames.CONTENT_TYPE, "text/event-stream;charset=UTF-8");
+            ctx.response().headers().add(HttpHeaderNames.CONNECTION, "keep-alive");
+            ctx.response().headers().add(HttpHeaderNames.CACHE_CONTROL, "no-cache");
+            return ctx
+                .response()
+                .writeHeaders()
+                .andThen(ctx.response().messages())
+                .flatMapSingle(message -> {
+                    HashMap<String, Object> comments = new HashMap<>();
+                    if (message.headers() != null) {
+                        message.headers().toListValuesMap().forEach((key, value) -> comments.put(key, String.join(",", value)));
+                    }
+                    if (message.metadata() != null) {
+                        comments.putAll(message.metadata());
+                    }
+                    return ctx
+                        .response()
+                        .write(
+                            Buffer.buffer(
+                                SseEvent
+                                    .builder()
+                                    .id(UUID.randomUUID().toString())
+                                    .event("message")
+                                    .data(message.content().getBytes())
+                                    .comments(comments)
+                                    .build()
+                                    .format()
+                            )
+                        )
+                        .andThen(ctx.response().write(Buffer.buffer("\n\n")))
+                        .andThen(Single.just(message));
+                })
+                .onErrorResumeNext(error -> {
+                    log.error("Error when dealing with response messages", error);
+                    return ctx
+                        .response()
+                        .end(
+                            Buffer.buffer(
+                                SseEvent
+                                    .builder()
+                                    .id(UUID.randomUUID().toString())
+                                    .event("error")
+                                    .data(error.getMessage().getBytes(StandardCharsets.UTF_8))
+                                    .build()
+                                    .format()
+                            )
+                        )
+                        .andThen(Flowable.error(error));
+                })
+                .ignoreElements()
+                .andThen(ctx.response().end());
+        });
+    }
+
+    @Override
+    public Completable handleError(final MessageExecutionContext ctx, final Throwable throwable) {
+        return Completable.defer(() -> {
+            ExecutionFailure executionFailure = ctx.getInternalAttribute(ATTR_INTERNAL_EXECUTION_FAILURE);
+            ctx.response().status(executionFailure.statusCode());
+            ctx.response().reason(HttpResponseStatus.valueOf(executionFailure.statusCode()).reasonPhrase());
+            return ctx
+                .response()
+                .end(
+                    Buffer.buffer(
+                        SseEvent
+                            .builder()
+                            .id(UUID.randomUUID().toString())
+                            .event("error")
+                            .data(executionFailure.message().getBytes(StandardCharsets.UTF_8))
+                            .build()
+                            .format()
                     )
-                    .onErrorResumeNext(
-                        error -> {
-                            log.error("Error when dealing with response messages", error);
-                            return ctx
-                                .response()
-                                .end(
-                                    Buffer.buffer(
-                                        SseEvent
-                                            .builder()
-                                            .id(UUID.randomUUID().toString())
-                                            .event("error")
-                                            .data(error.getMessage().getBytes(StandardCharsets.UTF_8))
-                                            .build()
-                                            .format()
-                                    )
-                                )
-                                .andThen(Flowable.error(error));
-                        }
-                    )
-                    .ignoreElements()
-                    .andThen(ctx.response().end());
-            }
-        );
+                );
+        });
     }
 }

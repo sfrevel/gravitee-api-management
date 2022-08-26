@@ -78,6 +78,10 @@ public class AsyncApiReactor
         this.policyManager = policyManager;
         this.asyncEntrypointResolver = asyncEntrypointResolver;
         this.defaultInvoker = defaultInvoker;
+        //
+        //        this.apiPreProcessorChain = apiProcessorChainFactory.preProcessorChain(api);
+        //        this.apiPostProcessorChain = apiProcessorChainFactory.postProcessorChain(api);
+        //        this.apiErrorProcessorChain = apiProcessorChainFactory.errorProcessorChain(api);
 
         this.platformFlowChain = flowChainFactory.createPlatformFlow(api);
     }
@@ -110,15 +114,13 @@ public class AsyncApiReactor
     private Completable handleRequest(final MutableMessageExecutionContext ctx) {
         EntrypointAsyncConnector entrypointConnector = asyncEntrypointResolver.resolve(ctx);
         if (entrypointConnector == null) {
-            return Completable.defer(
-                () -> {
-                    String noEntrypointMsg = "No entrypoint matches the incoming request";
-                    log.debug(noEntrypointMsg);
-                    ctx.response().status(HttpStatusCode.NOT_FOUND_404);
-                    ctx.response().reason(noEntrypointMsg);
-                    return ctx.response().end();
-                }
-            );
+            return Completable.defer(() -> {
+                String noEntrypointMsg = "No entrypoint matches the incoming request";
+                log.debug(noEntrypointMsg);
+                ctx.response().status(HttpStatusCode.NOT_FOUND_404);
+                ctx.response().reason(noEntrypointMsg);
+                return ctx.response().end();
+            });
         }
 
         // Add the resolved entrypoint connector into the internal attributes, so it can be used later (ex: for endpoint connector resolution).
@@ -131,25 +133,27 @@ public class AsyncApiReactor
             .andThen(entrypointConnector.handleRequest(ctx))
             .andThen(invokeBackend(ctx))
             .andThen(entrypointConnector.handleResponse(ctx))
+            // Catch deal with errors without breaking the chain
+            .onErrorResumeNext(t -> entrypointConnector.handleError(ctx, t))
             // Platform post flows must always be executed
             .andThen(platformFlowChain.execute(ctx, RESPONSE))
-            // Catch all possible unexpected errors.
-            .onErrorResumeNext(t -> handleUnexpectedError(ctx, t));
+            // Catch platform errors and call entrypoint
+            .onErrorResumeNext(t -> entrypointConnector.handleError(ctx, t))
+            // Catch all possible unexpected errors and end connection any way
+            .onErrorResumeNext(t -> handleUnexpectedError(ctx, t).andThen(ctx.response().end()));
     }
 
     private Completable invokeBackend(final MutableMessageExecutionContext ctx) {
-        return defer(
-                () -> {
-                    if (!Objects.equals(false, ctx.<Boolean>getAttribute(ATTR_INVOKER_SKIP))) {
-                        Invoker invoker = getInvoker(ctx);
+        return defer(() -> {
+                if (!Objects.equals(false, ctx.<Boolean>getAttribute(ATTR_INVOKER_SKIP))) {
+                    Invoker invoker = getInvoker(ctx);
 
-                        if (invoker != null) {
-                            return invoker.invoke(ctx);
-                        }
+                    if (invoker != null) {
+                        return invoker.invoke(ctx);
                     }
-                    return Completable.complete();
                 }
-            )
+                return Completable.complete();
+            })
             .doOnSubscribe(disposable -> ctx.request().metrics().setApiResponseTimeMs(System.currentTimeMillis()))
             .doOnDispose(() -> setApiResponseTimeMetric(ctx))
             .doOnTerminate(() -> setApiResponseTimeMetric(ctx));
@@ -170,15 +174,13 @@ public class AsyncApiReactor
     }
 
     private Completable handleUnexpectedError(final HttpExecutionContext ctx, final Throwable throwable) {
-        return Completable.fromRunnable(
-            () -> {
-                log.error("Unexpected error while handling request", throwable);
-                setApiResponseTimeMetric(ctx);
+        return Completable.fromRunnable(() -> {
+            log.error("Unexpected error while handling request", throwable);
+            setApiResponseTimeMetric(ctx);
 
-                ctx.response().status(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
-                ctx.response().reason(HttpResponseStatus.INTERNAL_SERVER_ERROR.reasonPhrase());
-            }
-        );
+            ctx.response().status(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
+            ctx.response().reason(HttpResponseStatus.INTERNAL_SERVER_ERROR.reasonPhrase());
+        });
     }
 
     private void setApiResponseTimeMetric(HttpExecutionContext ctx) {

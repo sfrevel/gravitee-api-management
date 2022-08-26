@@ -121,7 +121,6 @@ public class AsyncReactorFactory implements ReactorFactory<Api> {
                 );
 
                 customComponentProvider.add(ResourceManager.class, resourceLifecycleManager);
-                customComponentProvider.add(Api.class, api);
 
                 final CompositeComponentProvider apiComponentProvider = new CompositeComponentProvider(
                     customComponentProvider,
