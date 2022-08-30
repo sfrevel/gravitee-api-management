@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "id": "urn:jsonschema:io:gravitee:plugin:entrypoint:http:get:configuration:HttpGetEntrypointConnectorConfiguration",
+  "properties": {
+    "messageCount": {
+      "type": "integer",
+      "title": "Number of messages to retrieve",
+      "description": "Number of messages to retrieve. Default is 500.",
+      "default": 500
+    }
+  },
+  "additionalProperties": false
+}
