@@ -518,22 +518,28 @@ jobs:
                   jobName: community-build
 
     test:
+        parameters:
+            apim-module:
+                description: "name of the apim module to test"
+                type: enum
+                enum: [ rest-api, definition, gateway ]
+                default: rest-api
         executor:
             name: openjdk
-            class: medium+
+            class: medium
         steps:
             - checkout
             - attach_workspace:
                   at: .
             - restore-maven-job-cache:
-                  jobName: test
+                  jobName: test-<<parameters.apim-module>>
             - restore_cache:
                   keys:
                       - gravitee-api-management-v7-build-apim-{{ .Environment.CIRCLE_WORKFLOW_WORKSPACE_ID }}
             - run:
                   name: Run tests
                   command: |
-                      mvn -U --fail-fast -s .gravitee.settings.xml test --no-transfer-progress -Dmain-modules -Dskip.validation=true -T 2C
+                      mvn -U --fail-fast -s .gravitee.settings.xml test --no-transfer-progress -D<<parameters.apim-module>>-modules -Dskip.validation=true -T 2C
             - run:
                   name: Save test results
                   command: |
@@ -542,15 +548,13 @@ jobs:
                   when: always
             - notify-on-failure
             - save-maven-job-cache:
-                  jobName: test
+                  jobName: test-<<parameters.apim-module>>
             - store_test_results:
                   path: ~/test-results
             - persist_to_workspace:
                   root: .
                   paths:
-                      - gravitee-apim-gateway/gravitee-apim-gateway-coverage/target/site/jacoco-aggregate/
-                      - gravitee-apim-rest-api/gravitee-apim-rest-api-coverage/target/site/jacoco-aggregate/
-                      - gravitee-apim-definition/gravitee-apim-definition-coverage/target/site/jacoco-aggregate/
+                      - gravitee-apim-<<parameters.apim-module>>/gravitee-apim-<<parameters.apim-module>>-coverage/target/site/jacoco-aggregate/
 
     test-plugin:
       executor:
@@ -1756,19 +1760,40 @@ workflows:
                               - /^\d+\.\d+\.x$/
             - test:
                   context: cicd-orchestrator
+                  name: test-rest-api
+                  apim-module: rest-api
                   requires:
                       - build
             - sonarcloud-analysis:
-                  name: Sonar - << matrix.working_directory >>
-                  matrix:
-                      parameters:
-                          working_directory:
-                              - gravitee-apim-rest-api
-                              - gravitee-apim-gateway
-                              - gravitee-apim-definition
+                  name: Sonar - gravitee-apim-rest-api
+                  working_directory: gravitee-apim-rest-api
                   context: cicd-orchestrator
                   requires:
-                      - test
+                      - test-rest-api
+            - test:
+                  context: cicd-orchestrator
+                  name: test-definition
+                  apim-module: definition
+                  requires:
+                      - build
+            - sonarcloud-analysis:
+                  name: Sonar - gravitee-apim-definitino
+                  working_directory: gravitee-apim-definition
+                  context: cicd-orchestrator
+                  requires:
+                      - test-definition
+            - test:
+                  context: cicd-orchestrator
+                  name: test-gateway
+                  apim-module: gateway
+                  requires:
+                      - build
+            - sonarcloud-analysis:
+                  name: Sonar - gravitee-apim-gateway
+                  working_directory: gravitee-apim-gateway
+                  context: cicd-orchestrator
+                  requires:
+                      - test-gateway
             - test-plugin:
                 context: cicd-orchestrator
                 requires:
@@ -1798,7 +1823,10 @@ workflows:
                               - /^\d+\.\d+\.x$/
                               - refactor-distribution-build-process
                   requires:
-                      - test
+                      - test-rest-api
+                      - test-definition
+                      - test-gateway
+                      - test-plugin
                       - test-repository
             - publish-on-nexus:
                   context: cicd-orchestrator
@@ -1809,14 +1837,22 @@ workflows:
                               - /^\d+\.\d+\.x$/
                               - refactor-distribution-build-process
                   requires:
-                      - test
+                      - test-rest-api
+                      - test-definition
+                      - test-gateway
+                      - test-plugin
                       - test-repository
+
             - publish-images-azure-registry:
                   name: Publish images on azure registry
                   context: cicd-orchestrator
                   requires:
-                      - test
+                      - test-rest-api
+                      - test-definition
+                      - test-gateway
+                      - test-plugin
                       - test-repository
+
                   filters:
                       branches:
                           only:
@@ -1843,8 +1879,12 @@ workflows:
                   context: cicd-orchestrator
                   requires:
                       - Build Console Storybook
+                      - test-rest-api
+                      - test-definition
+                      - test-gateway
+                      - test-plugin
                       - test-repository
-                      - test
+
             - webui-build:
                   name: Build APIM Console
                   context: cicd-orchestrator

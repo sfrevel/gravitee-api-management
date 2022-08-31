@@ -1016,16 +1016,38 @@
             </modules>
         </profile>
         <profile>
-            <id>main-modules</id>
+            <id>definition-modules</id>
             <activation>
                 <property>
-                    <name>main-modules</name>
+                    <name>definition-modules</name>
                     <value>true</value>
                 </property>
             </activation>
             <modules>
                 <module>gravitee-apim-definition</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>rest-api-modules</id>
+            <activation>
+                <property>
+                    <name>rest-api-modules</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <modules>
                 <module>gravitee-apim-rest-api</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>gateway-modules</id>
+            <activation>
+                <property>
+                    <name>gateway-modules</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <modules>
                 <module>gravitee-apim-gateway</module>
             </modules>
         </profile>
