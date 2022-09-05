@@ -15,16 +15,16 @@
  */
 package io.gravitee.plugin.endpoint;
 
-import io.gravitee.gateway.jupiter.api.connector.AbstractConnectorFactory;
 import io.gravitee.gateway.jupiter.api.connector.endpoint.EndpointConnector;
+import io.gravitee.gateway.jupiter.api.connector.endpoint.EndpointConnectorFactory;
 import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
 import io.gravitee.plugin.core.api.ConfigurablePluginManager;
 
 /**
  * @author GraviteeSource Team
  */
-public interface EndpointConnectorPluginManager extends ConfigurablePluginManager<EndpointConnectorPlugin<?>> {
-    <T extends AbstractConnectorFactory<U>, U extends EndpointConnector<V>, V extends ExecutionContext> T getFactoryById(
+public interface EndpointConnectorPluginManager extends ConfigurablePluginManager<EndpointConnectorPlugin<?, ?>> {
+    <T extends EndpointConnectorFactory<U>, U extends EndpointConnector<V>, V extends ExecutionContext> T getFactoryById(
         final String endpointPluginId
     );
 }

@@ -26,8 +26,8 @@ import io.gravitee.definition.model.v4.listener.entrypoint.Entrypoint;
 import io.gravitee.definition.model.v4.listener.http.HttpListener;
 import io.gravitee.gateway.jupiter.api.ApiType;
 import io.gravitee.gateway.jupiter.api.ConnectorMode;
-import io.gravitee.gateway.jupiter.api.connector.AbstractConnectorFactory;
 import io.gravitee.gateway.jupiter.api.connector.entrypoint.EntrypointConnector;
+import io.gravitee.gateway.jupiter.api.connector.entrypoint.EntrypointConnectorFactory;
 import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
 import io.gravitee.plugin.entrypoint.internal.DefaultEntrypointConnectorPluginManager;
 import java.util.ArrayList;
@@ -59,7 +59,7 @@ class HttpEntrypointConnectorResolverTest {
     private DefaultEntrypointConnectorPluginManager pluginManager;
 
     @Mock
-    private AbstractConnectorFactory<EntrypointConnector<HttpExecutionContext>> connectorFactory;
+    private EntrypointConnectorFactory connectorFactory;
 
     @BeforeEach
     void init() {
@@ -87,8 +87,8 @@ class HttpEntrypointConnectorResolverTest {
         final Entrypoint entrypoint2 = buildEntrypoint();
         final Entrypoint entrypoint3 = buildEntrypoint();
 
-        ((HttpListener) api.getListeners().get(0)).getEntrypoints().add(entrypoint2);
-        ((HttpListener) api.getListeners().get(0)).getEntrypoints().add(entrypoint3);
+        api.getListeners().get(0).getEntrypoints().add(entrypoint2);
+        api.getListeners().get(0).getEntrypoints().add(entrypoint3);
 
         final EntrypointConnector<HttpExecutionContext> entrypointConnector = mock(EntrypointConnector.class);
 

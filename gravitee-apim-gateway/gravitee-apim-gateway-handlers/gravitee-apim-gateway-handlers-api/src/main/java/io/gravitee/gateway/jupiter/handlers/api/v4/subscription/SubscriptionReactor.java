@@ -25,9 +25,8 @@ import io.gravitee.definition.model.v4.listener.ListenerType;
 import io.gravitee.definition.model.v4.listener.subscription.SubscriptionListener;
 import io.gravitee.gateway.api.service.Subscription;
 import io.gravitee.gateway.core.component.ComponentProvider;
-import io.gravitee.gateway.jupiter.api.connector.AbstractConnectorFactory;
-import io.gravitee.gateway.jupiter.api.connector.entrypoint.EntrypointConnector;
 import io.gravitee.gateway.jupiter.api.connector.entrypoint.async.EntrypointAsyncConnector;
+import io.gravitee.gateway.jupiter.api.connector.entrypoint.async.EntrypointAsyncConnectorFactory;
 import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
 import io.gravitee.gateway.jupiter.api.context.MessageExecutionContext;
 import io.gravitee.gateway.jupiter.api.invoker.Invoker;
@@ -91,11 +90,11 @@ public class SubscriptionReactor
 
     private Completable handleRequest(final MutableMessageExecutionContext ctx) {
         Subscription subscription = ctx.getInternalAttribute(ExecutionContext.ATTR_SUBSCRIPTION);
-        AbstractConnectorFactory<? extends EntrypointConnector<?>> connectorFactory = entrypointConnectorPluginManager.getFactoryById(
+        EntrypointAsyncConnectorFactory connectorFactory = entrypointConnectorPluginManager.getFactoryById(
             ctx.getInternalAttribute(ExecutionContext.ATTR_SUBSCRIPTION_TYPE)
         );
 
-        EntrypointAsyncConnector connector = (EntrypointAsyncConnector) connectorFactory.createConnector(subscription.getConfiguration());
+        EntrypointAsyncConnector connector = connectorFactory.createConnector(subscription.getConfiguration());
 
         if (connector == null) {
             return Completable.defer(

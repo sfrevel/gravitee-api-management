@@ -25,7 +25,7 @@ import io.gravitee.definition.model.v4.endpointgroup.Endpoint;
 import io.gravitee.definition.model.v4.endpointgroup.EndpointGroup;
 import io.gravitee.gateway.jupiter.api.ApiType;
 import io.gravitee.gateway.jupiter.api.ConnectorMode;
-import io.gravitee.gateway.jupiter.api.connector.AbstractConnectorFactory;
+import io.gravitee.gateway.jupiter.api.connector.ConnectorFactory;
 import io.gravitee.gateway.jupiter.api.connector.endpoint.EndpointConnector;
 import io.gravitee.gateway.jupiter.api.connector.entrypoint.EntrypointConnector;
 import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
@@ -62,7 +62,7 @@ class DefaultEndpointConnectorResolverTest {
     private EntrypointConnector<HttpExecutionContext> entrypointConnector;
 
     @Mock
-    private AbstractConnectorFactory<EndpointConnector<HttpExecutionContext>> connectorFactory;
+    private ConnectorFactory<EndpointConnector<HttpExecutionContext>> connectorFactory;
 
     @BeforeEach
     void init() {

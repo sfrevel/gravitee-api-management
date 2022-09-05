@@ -22,6 +22,7 @@ import io.gravitee.plugin.core.api.PluginManifest;
 import io.gravitee.plugin.endpoint.EndpointConnectorPlugin;
 import io.gravitee.plugin.endpoint.EndpointConnectorPluginManager;
 import io.gravitee.rest.api.model.platform.plugin.PlatformPluginEntity;
+import io.gravitee.rest.api.model.v4.connector.ConnectorPluginEntity;
 import io.gravitee.rest.api.service.JsonSchemaService;
 import io.gravitee.rest.api.service.exceptions.PluginNotFoundException;
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class EndpointServiceImplTest {
     private static final String SCHEMA = "my-test-schema";
 
     @InjectMocks
-    private EndpointPluginServiceImpl endpointService;
+    private EndpointConnectorPluginServiceImpl endpointService;
 
     @Mock
     private JsonSchemaService jsonSchemaService;
@@ -70,7 +71,7 @@ public class EndpointServiceImplTest {
         when(pluginManager.getSchema(PLUGIN_ID)).thenReturn(SCHEMA);
         when(jsonSchemaService.validate(SCHEMA, CONFIGURATION)).thenReturn("fixed-configuration");
 
-        String resultConfiguration = endpointService.validateEndpointConfiguration(PLUGIN_ID, CONFIGURATION);
+        String resultConfiguration = endpointService.validateConnectorConfiguration(PLUGIN_ID, CONFIGURATION);
 
         assertEquals("fixed-configuration", resultConfiguration);
     }
@@ -79,7 +80,7 @@ public class EndpointServiceImplTest {
     public void shouldValidateConfigurationWhenNullConfiguration() throws IOException {
         when(pluginManager.get(PLUGIN_ID)).thenReturn(mockPlugin);
 
-        String resultConfiguration = endpointService.validateEndpointConfiguration(PLUGIN_ID, null);
+        String resultConfiguration = endpointService.validateConnectorConfiguration(PLUGIN_ID, null);
 
         assertNull(resultConfiguration);
     }
@@ -88,7 +89,7 @@ public class EndpointServiceImplTest {
     public void shouldFailToValidateConfigurationWhenNoPlugin() {
         when(pluginManager.get(PLUGIN_ID)).thenReturn(null);
 
-        endpointService.validateEndpointConfiguration(PLUGIN_ID, CONFIGURATION);
+        endpointService.validateConnectorConfiguration(PLUGIN_ID, CONFIGURATION);
     }
 
     @Test
@@ -116,7 +117,7 @@ public class EndpointServiceImplTest {
         when(mockPlugin.manifest()).thenReturn(mockPluginManifest);
         when(pluginManager.findAll()).thenReturn(List.of(mockPlugin));
 
-        Set<PlatformPluginEntity> result = endpointService.findAll();
+        Set<ConnectorPluginEntity> result = endpointService.findAll();
 
         assertNotNull(result);
         assertEquals(1, result.size());

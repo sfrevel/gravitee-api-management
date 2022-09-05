@@ -17,6 +17,8 @@
 version: '3.5'
 
 networks:
+  kafka:
+    name: poc-sme_kafka-cluster
   frontend:
     name: frontend
   storage:
@@ -38,7 +40,7 @@ services:
       - storage
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-7.7.0}
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-7.8.0}
     container_name: gio_apim_elasticsearch
     restart: always
     volumes:
@@ -61,7 +63,7 @@ services:
       - storage
 
   gateway:
-    image: graviteeio/apim-gateway:${APIM_VERSION:-latest}
+    image: graviteeio.azurecr.io/apim-gateway:master-latest
     container_name: gio_apim_gateway
     restart: always
     ports:
@@ -75,12 +77,14 @@ services:
       - gravitee_management_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
       - gravitee_ratelimit_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
       - gravitee_reporters_elasticsearch_endpoints_0=http://elasticsearch:9200
+      - gravitee.api.jupiterMode.enabled=true
     networks:
       - storage
       - frontend
+      - kafka
 
   management_api:
-    image: graviteeio/apim-management-api:${APIM_VERSION:-latest}
+    image: graviteeio.azurecr.io/apim-management-api:master-latest
     container_name: gio_apim_management_api
     restart: always
     ports:
@@ -96,12 +100,13 @@ services:
     environment:
       - gravitee_management_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
       - gravitee_analytics_elasticsearch_endpoints_0=http://elasticsearch:9200
+      - gravitee.api.jupiterMode.enabled=true
     networks:
       - storage
       - frontend
 
   management_ui:
-    image: graviteeio/apim-management-ui:${APIM_VERSION:-latest}
+    image: graviteeio.azurecr.io/apim-management-ui:master-latest
     container_name: gio_apim_management_ui
     restart: always
     ports:
@@ -116,7 +121,7 @@ services:
       - frontend
 
   portal_ui:
-    image: graviteeio/apim-portal-ui:${APIM_VERSION:-latest}
+    image: graviteeio.azurecr.io/apim-portal-ui:master-latest
     container_name: gio_apim_portal_ui
     restart: always
     ports:
