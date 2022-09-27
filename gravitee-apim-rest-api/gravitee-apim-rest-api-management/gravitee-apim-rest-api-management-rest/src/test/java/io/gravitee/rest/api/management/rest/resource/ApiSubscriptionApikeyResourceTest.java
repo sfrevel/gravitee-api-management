@@ -51,6 +51,7 @@ public class ApiSubscriptionApikeyResourceTest extends AbstractResourceTest {
     @Before
     public void setUp() {
         reset(apiKeyService, subscriptionService, applicationService);
+        when(permissionService.hasPermission(any(), any(), any(), any())).thenReturn(true);
         GraviteeContext.cleanContext();
     }
 

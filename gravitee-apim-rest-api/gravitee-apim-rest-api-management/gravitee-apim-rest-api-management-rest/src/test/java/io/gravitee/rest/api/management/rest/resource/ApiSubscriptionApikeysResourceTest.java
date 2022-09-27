@@ -50,6 +50,7 @@ public class ApiSubscriptionApikeysResourceTest extends AbstractResourceTest {
     @Before
     public void setUp() {
         reset(apiKeyService);
+        when(permissionService.hasPermission(any(), any(), any(), any())).thenReturn(true);
     }
 
     @Test
