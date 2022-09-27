@@ -108,7 +108,11 @@ public class DynamicPropertyUpdaterTest {
 
         poller.handle(1L);
 
-        assertTrue(future.isDone());
+        while (!future.isDone()) {
+            System.out.println("Sleeping for 1 sec");
+
+            Thread.sleep(1000);
+        }
 
         verify(apiService, times(1)).update(any(), any(), any());
         verify(apiService, times(1)).deploy(any(), any(), eq("dynamic-property-updater"), any(), any());
@@ -129,7 +133,11 @@ public class DynamicPropertyUpdaterTest {
 
         poller.handle(1L);
 
-        assertTrue(future.isDone());
+        while (!future.isDone()) {
+            System.out.println("Sleeping for 1 sec");
+            Thread.sleep(1000);
+        }
+
         verify(apiService, times(1)).update(any(), any(), any());
         verify(apiService, never()).deploy(eq(GraviteeContext.getExecutionContext()), eq("api-id"), eq(null), any(), any());
     }
