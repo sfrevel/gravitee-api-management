@@ -107,22 +107,22 @@ public class DynamicPropertyUpdaterTest {
         final CountDownLatch latch = new CountDownLatch(1);
 
         CompletableFuture<Collection<DynamicProperty>> future = CompletableFuture.supplyAsync(
-                () -> {
-                    DynamicProperty property = new DynamicProperty("my-key", "my-value");
-                    return Collections.singletonList(property);
-                }
-            );
-        
-        
+            () -> {
+                DynamicProperty property = new DynamicProperty("my-key", "my-value");
+                return Collections.singletonList(property);
+            }
+        );
+
         when(provider.get())
-            .thenReturn(future
-//                CompletableFuture.supplyAsync(
-//                    () -> {
-//                        DynamicProperty property = new DynamicProperty("my-key", "my-value");
-//                        latch.countDown();
-//                        return Collections.singletonList(property);
-//                    }
-//                )
+            .thenReturn(
+                future
+                //                CompletableFuture.supplyAsync(
+                //                    () -> {
+                //                        DynamicProperty property = new DynamicProperty("my-key", "my-value");
+                //                        latch.countDown();
+                //                        return Collections.singletonList(property);
+                //                    }
+                //                )
             );
 
         ApiEntity api = new ApiEntity();
