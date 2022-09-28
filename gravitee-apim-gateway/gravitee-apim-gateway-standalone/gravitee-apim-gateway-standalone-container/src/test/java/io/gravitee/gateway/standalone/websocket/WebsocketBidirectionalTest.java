@@ -96,7 +96,7 @@ public class WebsocketBidirectionalTest extends AbstractWebSocketGatewayTest {
             }
         );
 
-        testContext.awaitCompletion(10, TimeUnit.SECONDS);
+        testContext.awaitCompletion(15, TimeUnit.SECONDS);
         httpServer.close();
 
         String failureMessage = testContext.causeOfFailure() != null ? testContext.causeOfFailure().getMessage() : null;
