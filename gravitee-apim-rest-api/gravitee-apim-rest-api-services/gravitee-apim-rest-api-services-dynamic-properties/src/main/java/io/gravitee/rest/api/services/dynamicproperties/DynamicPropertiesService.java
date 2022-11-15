@@ -20,12 +20,13 @@ import io.gravitee.common.event.Event;
 import io.gravitee.common.event.EventListener;
 import io.gravitee.common.event.EventManager;
 import io.gravitee.common.service.AbstractService;
+import io.gravitee.definition.model.DefinitionVersion;
 import io.gravitee.definition.model.services.dynamicproperty.DynamicPropertyProvider;
 import io.gravitee.definition.model.services.dynamicproperty.DynamicPropertyService;
 import io.gravitee.node.api.Node;
 import io.gravitee.rest.api.model.api.ApiEntity;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
 import io.gravitee.rest.api.service.ApiService;
-import io.gravitee.rest.api.service.EventService;
 import io.gravitee.rest.api.service.HttpClientService;
 import io.gravitee.rest.api.service.converter.ApiConverter;
 import io.gravitee.rest.api.service.event.ApiEvent;
@@ -41,8 +42,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 /**
  * @author Alexandre FARIA (lusoalex on github.com)
  */
-public class DynamicPropertiesService extends AbstractService implements EventListener<ApiEvent, ApiEntity> {
+public class DynamicPropertiesService extends AbstractService implements EventListener<ApiEvent, GenericApiEntity> {
 
+    final Map<ApiEntity, CronHandler> handlers = new HashMap<>();
     /**
      * Logger.
      */
@@ -66,8 +68,6 @@ public class DynamicPropertiesService extends AbstractService implements EventLi
     @Autowired
     private Node node;
 
-    final Map<ApiEntity, CronHandler> handlers = new HashMap<>();
-
     @Override
     protected String name() {
         return "Dynamic Properties Service";
@@ -86,19 +86,24 @@ public class DynamicPropertiesService extends AbstractService implements EventLi
     }
 
     @Override
-    public void onEvent(Event<ApiEvent, ApiEntity> event) {
-        final ApiEntity api = event.content();
-
-        switch (event.type()) {
-            case DEPLOY:
-                startDynamicProperties(api);
-                break;
-            case UNDEPLOY:
-                stopDynamicProperties(api);
-                break;
-            case UPDATE:
-                update(api);
-                break;
+    public void onEvent(Event<ApiEvent, GenericApiEntity> event) {
+        final GenericApiEntity genericApiEntity = event.content();
+        // TODO Add v4 api handling when service is compatible
+        if (genericApiEntity.getDefinitionVersion() == null || genericApiEntity.getDefinitionVersion() != DefinitionVersion.V4) {
+            ApiEntity api = (ApiEntity) genericApiEntity;
+            switch (event.type()) {
+                case DEPLOY:
+                    startDynamicProperties(api);
+                    break;
+                case UNDEPLOY:
+                    stopDynamicProperties(api);
+                    break;
+                case UPDATE:
+                    update(api);
+                    break;
+            }
+        } else {
+            logger.warn("Dynamic properties service is not compatible with api V4");
         }
     }
 

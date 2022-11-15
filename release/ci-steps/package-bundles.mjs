@@ -102,18 +102,18 @@ const createFileSum = async (file) => {
   await $`sha1sum ${file} > ${file}.sha1`;
 };
 
-await spinner('Download all dependencies...', () =>
-  Promise.all(
-    allDependencies.map(async ({ downloadUrl }) => {
-      try {
-        await $`curl -u ${process.env.ARTIFACTORY_USERNAME}:${process.env.ARTIFACTORY_PASSWORD} -f -O ${downloadUrl}`;
-        return Promise.resolve(downloadUrl);
-      } catch (e) {
-        console.log(chalk.red(`Failed to download ${downloadUrl}`));
-        return Promise.reject();
-      }
-    }),
-  ),
+console.log(chalk.blue(`Downloading all dependencies from artifactory:`));
+await Promise.all(
+  allDependencies.map(async ({ downloadUrl }) => {
+    try {
+      await $`curl -u ${process.env.ARTIFACTORY_USERNAME}:${process.env.ARTIFACTORY_PASSWORD} -f -O ${downloadUrl}`;
+      console.log(chalk.yellow(` -  ✅ ${downloadUrl}`));
+      return Promise.resolve(downloadUrl);
+    } catch (e) {
+      console.log(chalk.red(`Failed to download ${downloadUrl}`));
+      return Promise.reject();
+    }
+  }),
 );
 
 console.log(chalk.green(`\n   ${allDependencies.length} dependencies downloaded`));
@@ -187,12 +187,12 @@ const restApiDependenciesExclusion = [
   'gravitee-apim-repository-redis',
   'gravitee-apim-repository-gateway-bridge-http-client',
 ];
-await spinner('Add plugins to Rest API...', () =>
-  Promise.all(
-    allDependencies
-      .filter((d) => !restApiDependenciesExclusion.includes(d.artifactId) && !restApiDependenciesExclusion.includes(d.groupId))
-      .map(({ fileName }) => $`cp ${fileName} ${fullDistributionDir}/gravitee-apim-rest-api-${releasingVersion}/plugins`),
-  ),
+
+console.log(chalk.blue(`Add plugins to Rest API`));
+await Promise.all(
+  allDependencies
+    .filter((d) => !restApiDependenciesExclusion.includes(d.artifactId) && !restApiDependenciesExclusion.includes(d.groupId))
+    .map(({ fileName }) => $`cp ${fileName} ${fullDistributionDir}/gravitee-apim-rest-api-${releasingVersion}/plugins`),
 );
 
 // Gateway
@@ -212,12 +212,12 @@ const gatewayDependenciesExclusion = [
   'gravitee-apim-repository-hazelcast',
   'gravitee-apim-repository-redis',
 ];
-await spinner('Add plugins to Gateway...', () =>
-  Promise.all(
-    allDependencies
-      .filter((d) => !gatewayDependenciesExclusion.includes(d.artifactId) && !gatewayDependenciesExclusion.includes(d.groupId))
-      .map(async ({ fileName }) => $`cp ${fileName} ${fullDistributionDir}/gravitee-apim-gateway-${releasingVersion}/plugins`),
-  ),
+
+console.log(chalk.blue(`Add plugins to Gateway`));
+await Promise.all(
+  allDependencies
+    .filter((d) => !gatewayDependenciesExclusion.includes(d.artifactId) && !gatewayDependenciesExclusion.includes(d.groupId))
+    .map(async ({ fileName }) => $`cp ${fileName} ${fullDistributionDir}/gravitee-apim-gateway-${releasingVersion}/plugins`),
 );
 
 // TODO: Remove the following lines to align names of these components to match the naming convention `gravitee-*` and not `graviteeio-*`
@@ -235,17 +235,23 @@ await within(async () => {
   await $`rm -rf graviteeio-full-${releasingVersion}`;
 });
 
-console.log(chalk.blue(`Step 8: Packaging - Plugins / All Repositories`));
-const repositoriesPluginDir = `./dist/plugins/repositories`;
-await $`rm -rf ${repositoriesPluginDir} && mkdir -p ${repositoriesPluginDir}`;
+console.log(chalk.blue(`Step 8: Packaging - Plugins / Repositories`));
+const packagePlugins = async (pluginsDir, pluginsGroupId) => {
+  await $`rm -rf ${pluginsDir} && mkdir -p ${pluginsDir}`;
 
-await Promise.all(
-  allDependencies
-    .filter((d) => d.groupId.startsWith('io.gravitee.apim.repository'))
-    .map(async ({ fileName, artifactId }) => {
-      await $`mkdir -p  ${repositoriesPluginDir}/${artifactId} && cp ${fileName} ${repositoriesPluginDir}/${artifactId}/`;
-      await createFileSum(`${repositoriesPluginDir}/${artifactId}/${fileName}`);
-    }),
-);
+  await Promise.all(
+    allDependencies
+      .filter((d) => d.groupId.startsWith(pluginsGroupId))
+      .map(async ({ fileName, artifactId }) => {
+        await $`mkdir -p  ${pluginsDir}/${artifactId} && cp ${fileName} ${pluginsDir}/${artifactId}/`;
+        await createFileSum(`${pluginsDir}/${artifactId}/${fileName}`);
+      }),
+  );
+};
+
+// Repositories
+await packagePlugins('./dist/plugins/repositories', 'io.gravitee.apim.repository');
+await packagePlugins('./dist/plugins/endpoints', 'io.gravitee.apim.plugin.endpoint');
+await packagePlugins('./dist/plugins/entrypoints', 'io.gravitee.apim.plugin.entrypoint');
 
 console.log(chalk.magenta(`📦 The package is ready!`));

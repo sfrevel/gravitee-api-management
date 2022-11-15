@@ -32,14 +32,15 @@ import io.gravitee.repository.management.api.MetadataRepository;
 import io.gravitee.repository.management.model.Metadata;
 import io.gravitee.repository.management.model.MetadataReferenceType;
 import io.gravitee.rest.api.model.*;
-import io.gravitee.rest.api.model.api.ApiEntity;
+import io.gravitee.rest.api.model.v4.api.ApiEntity;
 import io.gravitee.rest.api.service.ApiMetadataService;
-import io.gravitee.rest.api.service.ApiService;
 import io.gravitee.rest.api.service.AuditService;
 import io.gravitee.rest.api.service.MetadataService;
 import io.gravitee.rest.api.service.common.GraviteeContext;
 import io.gravitee.rest.api.service.exceptions.DuplicateMetadataNameException;
+import io.gravitee.rest.api.service.notification.NotificationTemplateService;
 import io.gravitee.rest.api.service.search.SearchEngineService;
+import io.gravitee.rest.api.service.v4.ApiSearchService;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -77,7 +78,7 @@ public class ApiMetadataServiceTest {
     private MetadataService metadataService;
 
     @Mock
-    private ApiService apiService;
+    private ApiSearchService apiSearchService;
 
     @Mock
     private AuditService auditService;
@@ -103,6 +104,9 @@ public class ApiMetadataServiceTest {
     @Mock
     private SearchEngineService searchEngineService;
 
+    @Mock
+    private NotificationTemplateService notificationTemplateService;
+
     @Before
     public void init() throws TechnicalException {
         mockMetadata(defaultMetadata, METADATA_KEY, DEFAULT, getDefaultReferenceId(), METADATA_VALUE);
@@ -124,6 +128,10 @@ public class ApiMetadataServiceTest {
         when(defaultMetadataEntityWithoutOverride.getValue()).thenReturn(METADATA_VALUE);
 
         when(metadataService.findAllDefault()).thenReturn(Arrays.asList(defaultMetadataEntity, defaultMetadataEntityWithoutOverride));
+
+        ApiEntity apiEntity = new ApiEntity();
+        apiEntity.setId(API_ID);
+        when(apiSearchService.findGenericById(any(), any())).thenReturn(apiEntity);
     }
 
     private void mockMetadata(Metadata apiMetadata, String key, MetadataReferenceType api, String apiId, String apiMetadataValue) {
@@ -273,7 +281,6 @@ public class ApiMetadataServiceTest {
 
         when(apiMetadata.getValue()).thenReturn(newValue);
         when(metadataRepository.update(any())).thenReturn(apiMetadata);
-        when(apiService.fetchMetadataForApi(eq(GraviteeContext.getExecutionContext()), any())).thenReturn(new ApiEntity());
 
         final ApiMetadataEntity updatedApiMetadata = apiMetadataService.update(
             GraviteeContext.getExecutionContext(),
@@ -319,7 +326,6 @@ public class ApiMetadataServiceTest {
         when(apiMetadata.getValue()).thenReturn(newValue);
         when(metadataRepository.findById(eq("metname"), any(), any())).thenReturn(Optional.of(apiMetadata));
         when(metadataRepository.update(any())).thenReturn(apiMetadata);
-        when(apiService.fetchMetadataForApi(eq(GraviteeContext.getExecutionContext()), any())).thenReturn(new ApiEntity());
 
         final ApiMetadataEntity updatedApiMetadata = apiMetadataService.update(
             GraviteeContext.getExecutionContext(),

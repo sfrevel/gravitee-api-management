@@ -59,13 +59,13 @@ import io.gravitee.rest.api.service.notification.ApplicationHook;
 import io.gravitee.rest.api.service.notification.HookScope;
 import java.io.IOException;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.xml.bind.DatatypeConverter;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -78,6 +78,7 @@ public class ApplicationServiceImpl extends AbstractService implements Applicati
 
     private final Logger LOGGER = LoggerFactory.getLogger(ApplicationServiceImpl.class);
 
+    @Lazy
     @Autowired
     private ApplicationRepository applicationRepository;
 
@@ -608,7 +609,7 @@ public class ApplicationServiceImpl extends AbstractService implements Applicati
                         );
                     }
                 );
-            return convertActiveApplication(executionContext, Collections.singleton(updatedApplication)).iterator().next();
+            return convertApplication(executionContext, Collections.singleton(updatedApplication)).iterator().next();
         } catch (TechnicalException ex) {
             LOGGER.error("An error occurs while trying to update application {}", applicationId, ex);
             throw new TechnicalManagementException(
@@ -673,7 +674,7 @@ public class ApplicationServiceImpl extends AbstractService implements Applicati
                     updatedApplication
                 );
 
-                return convertActiveApplication(executionContext, Collections.singleton(updatedApplication)).iterator().next();
+                return convertApplication(executionContext, Collections.singleton(updatedApplication)).iterator().next();
             }
 
             throw new ApplicationRenewClientSecretException(applicationToUpdate.getName());
@@ -845,7 +846,7 @@ public class ApplicationServiceImpl extends AbstractService implements Applicati
         }
     }
 
-    private Set<ApplicationEntity> convertActiveApplication(ExecutionContext executionContext, Collection<Application> applications)
+    private Set<ApplicationEntity> convertApplication(ExecutionContext executionContext, Collection<Application> applications)
         throws TechnicalException {
         if (applications == null || applications.isEmpty()) {
             return Collections.emptySet();
@@ -859,19 +860,23 @@ public class ApplicationServiceImpl extends AbstractService implements Applicati
         }
 
         //find primary owners usernames of each application
-        final List<String> appIds = applications.parallelStream().map(Application::getId).collect(toList());
+        final List<String> activeApplicationIds = applications
+            .parallelStream()
+            .filter(app -> ApplicationStatus.ACTIVE.equals(app.getStatus()))
+            .map(Application::getId)
+            .collect(toList());
 
         Set<MembershipEntity> memberships = membershipService.getMembershipsByReferencesAndRole(
             io.gravitee.rest.api.model.MembershipReferenceType.APPLICATION,
-            appIds,
+            activeApplicationIds,
             primaryOwnerRole.getId()
         );
-        int poMissing = appIds.size() - memberships.size();
+        int poMissing = activeApplicationIds.size() - memberships.size();
         if (poMissing > 0) {
             Set<String> appMembershipsIds = memberships.stream().map(MembershipEntity::getReferenceId).collect(toSet());
 
-            appIds.removeAll(appMembershipsIds);
-            Optional<String> optionalApplicationsAsString = appIds.stream().reduce((a, b) -> a + " / " + b);
+            activeApplicationIds.removeAll(appMembershipsIds);
+            Optional<String> optionalApplicationsAsString = activeApplicationIds.stream().reduce((a, b) -> a + " / " + b);
 
             String applicationsAsString = "?";
             if (optionalApplicationsAsString.isPresent()) applicationsAsString = optionalApplicationsAsString.get();
@@ -948,7 +953,7 @@ public class ApplicationServiceImpl extends AbstractService implements Applicati
 
     private Set<ApplicationListItem> convertToList(final ExecutionContext executionContext, Collection<Application> applications)
         throws TechnicalException {
-        Set<ApplicationEntity> entities = convertActiveApplication(executionContext, applications);
+        Set<ApplicationEntity> entities = convertApplication(executionContext, applications);
 
         return entities
             .stream()

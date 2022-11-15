@@ -18,7 +18,7 @@ package io.gravitee.rest.api.services.sync;
 import static java.util.stream.Collectors.toMap;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.gravitee.common.event.EventManager;
+import io.gravitee.definition.model.DefinitionVersion;
 import io.gravitee.repository.management.api.EventRepository;
 import io.gravitee.repository.management.api.search.EventCriteria;
 import io.gravitee.repository.management.model.Api;
@@ -27,13 +27,13 @@ import io.gravitee.repository.management.model.EventType;
 import io.gravitee.rest.api.model.EnvironmentEntity;
 import io.gravitee.rest.api.model.PrimaryOwnerEntity;
 import io.gravitee.rest.api.model.api.ApiEntity;
-import io.gravitee.rest.api.service.ApiService;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
 import io.gravitee.rest.api.service.EnvironmentService;
-import io.gravitee.rest.api.service.MembershipService;
-import io.gravitee.rest.api.service.UserService;
 import io.gravitee.rest.api.service.common.GraviteeContext;
 import io.gravitee.rest.api.service.converter.ApiConverter;
 import io.gravitee.rest.api.service.exceptions.PrimaryOwnerNotFoundException;
+import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
+import io.gravitee.rest.api.service.v4.mapper.ApiMapper;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -49,14 +50,15 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public class SyncManager {
 
-    private final Logger logger = LoggerFactory.getLogger(SyncManager.class);
-
     private static final int TIMEFRAME_BEFORE_DELAY = 10 * 60 * 1000;
     private static final int TIMEFRAME_AFTER_DELAY = 1 * 60 * 1000;
+    private final Logger logger = LoggerFactory.getLogger(SyncManager.class);
+    private final AtomicLong counter = new AtomicLong(0);
 
     @Autowired
     private DictionaryManager dictionaryManager;
 
+    @Lazy
     @Autowired
     private EventRepository eventRepository;
 
@@ -70,21 +72,13 @@ public class SyncManager {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private EventManager eventManager;
-
-    @Autowired
-    private MembershipService membershipService;
-
-    @Autowired
-    private UserService userService;
-
-    @Autowired
     private EnvironmentService environmentService;
 
     @Autowired
-    private ApiService apiService;
+    private PrimaryOwnerService primaryOwnerService;
 
-    private final AtomicLong counter = new AtomicLong(0);
+    @Autowired
+    private ApiMapper apiMapper;
 
     private long lastRefreshAt = -1;
 
@@ -187,18 +181,23 @@ public class SyncManager {
                     Api payloadApi = objectMapper.readValue(apiEvent.getPayload(), Api.class);
 
                     // API to deploy
-                    ApiEntity apiToDeploy = convert(payloadApi);
+                    GenericApiEntity indexableApiToDeploy;
+                    if (payloadApi.getDefinitionVersion() == null || payloadApi.getDefinitionVersion() != DefinitionVersion.V4) {
+                        indexableApiToDeploy = convert(payloadApi);
+                    } else {
+                        indexableApiToDeploy = convertV4(payloadApi);
+                    }
 
-                    if (apiToDeploy != null) {
+                    if (indexableApiToDeploy != null) {
                         // Get deployed API
-                        ApiEntity deployedApi = apiManager.get(apiToDeploy.getId());
+                        GenericApiEntity deployedApi = apiManager.get(indexableApiToDeploy.getId());
 
                         // API is not yet deployed, so let's do it !
                         if (deployedApi == null) {
-                            apiManager.deploy(apiToDeploy);
+                            apiManager.deploy(indexableApiToDeploy);
                         } else {
-                            if (deployedApi.getDeployedAt().before(apiToDeploy.getDeployedAt())) {
-                                apiManager.update(apiToDeploy);
+                            if (deployedApi.getDeployedAt().before(indexableApiToDeploy.getDeployedAt())) {
+                                apiManager.update(indexableApiToDeploy);
                             }
                         }
                     }
@@ -224,10 +223,15 @@ public class SyncManager {
 
         PrimaryOwnerEntity primaryOwnerEntity = null;
         try {
-            primaryOwnerEntity = apiService.getPrimaryOwner(GraviteeContext.getExecutionContext(), api.getId());
+            primaryOwnerEntity = primaryOwnerService.getPrimaryOwner(GraviteeContext.getExecutionContext(), api.getId());
         } catch (PrimaryOwnerNotFoundException e) {
             logger.error(e.getMessage());
         }
         return apiConverter.toApiEntity(api, primaryOwnerEntity);
+    }
+
+    private io.gravitee.rest.api.model.v4.api.ApiEntity convertV4(Api api) {
+        PrimaryOwnerEntity primaryOwner = primaryOwnerService.getPrimaryOwner(GraviteeContext.getExecutionContext(), api.getId());
+        return apiMapper.toEntity(api, primaryOwner);
     }
 }

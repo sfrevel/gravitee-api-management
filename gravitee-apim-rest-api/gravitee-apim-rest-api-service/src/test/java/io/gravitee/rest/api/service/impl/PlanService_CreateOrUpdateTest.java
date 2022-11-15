@@ -17,7 +17,12 @@ package io.gravitee.rest.api.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.gravitee.repository.exceptions.TechnicalException;
@@ -30,7 +35,7 @@ import io.gravitee.rest.api.service.PlanService;
 import io.gravitee.rest.api.service.common.GraviteeContext;
 import io.gravitee.rest.api.service.converter.PlanConverter;
 import io.gravitee.rest.api.service.exceptions.PlanNotFoundException;
-import java.util.Optional;
+import io.gravitee.rest.api.service.v4.PlanSearchService;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -53,6 +58,9 @@ public class PlanService_CreateOrUpdateTest {
     private PlanService planService = new PlanServiceImpl();
 
     @Mock
+    private PlanSearchService planSearchService;
+
+    @Mock
     private PlanRepository planRepository;
 
     @Mock
@@ -71,69 +79,64 @@ public class PlanService_CreateOrUpdateTest {
     private PlanEntity planEntity;
 
     @Test
-    public void shouldUpdateAndHaveId() throws TechnicalException {
+    public void shouldUpdateAndHaveId() {
         final PlanEntity expected = new PlanEntity();
         expected.setId("updated");
 
         when(this.planEntity.getId()).thenReturn(PLAN_ID);
         when(planConverter.toUpdatePlanEntity(planEntity)).thenCallRealMethod();
-        doReturn(new PlanEntity()).when(planService).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
+        doReturn(new PlanEntity()).when(planSearchService).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
         doReturn(expected).when(planService).update(eq(GraviteeContext.getExecutionContext()), any(UpdatePlanEntity.class));
 
         final PlanEntity actual = planService.createOrUpdatePlan(GraviteeContext.getExecutionContext(), this.planEntity);
 
         assertThat(actual.getId()).isEqualTo(expected.getId());
-        verify(planService, times(1)).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
+        verify(planSearchService, times(1)).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
         verify(planService, times(1)).update(eq(GraviteeContext.getExecutionContext()), any(UpdatePlanEntity.class));
     }
 
     @Test
-    public void shouldCreateAndHaveId() throws TechnicalException {
+    public void shouldCreateAndHaveId() {
         final PlanEntity expected = new PlanEntity();
         expected.setId("created");
 
         when(planEntity.getId()).thenReturn(PLAN_ID);
-        doThrow(PlanNotFoundException.class).when(planService).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
+        doThrow(PlanNotFoundException.class).when(planSearchService).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
         doReturn(expected).when(planService).create(eq(GraviteeContext.getExecutionContext()), any());
 
         final PlanEntity actual = planService.createOrUpdatePlan(GraviteeContext.getExecutionContext(), planEntity);
 
         assertThat(actual.getId()).isEqualTo(expected.getId());
-        verify(planService, times(1)).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
+        verify(planSearchService, times(1)).findById(GraviteeContext.getExecutionContext(), PLAN_ID);
         verify(planService, times(1)).create(eq(GraviteeContext.getExecutionContext()), any());
     }
 
     @Test
-    public void shouldCreateAndHaveNoId() throws TechnicalException {
+    public void shouldCreateAndHaveNoId() {
         final PlanEntity expected = new PlanEntity();
         expected.setId("created");
 
         when(planEntity.getId()).thenReturn(null);
-        when(planRepository.findById(any())).thenReturn(Optional.empty());
 
         doReturn(expected).when(planService).create(eq(GraviteeContext.getExecutionContext()), any());
 
         final PlanEntity actual = planService.createOrUpdatePlan(GraviteeContext.getExecutionContext(), planEntity);
 
         assertThat(actual.getId()).isEqualTo(expected.getId());
-        verify(planService, times(1)).findById(eq(GraviteeContext.getExecutionContext()), any());
         verify(planService, times(1)).create(eq(GraviteeContext.getExecutionContext()), any());
     }
 
     @Test
-    public void shouldUpdateAndHaveNoId() throws TechnicalException {
+    public void shouldUpdateAndHaveNoId() {
         final PlanEntity expected = new PlanEntity();
         expected.setId("updated");
 
         when(planEntity.getId()).thenReturn(null);
-        when(planConverter.toUpdatePlanEntity(planEntity)).thenCallRealMethod();
-        doReturn(expected).when(planService).findById(eq(GraviteeContext.getExecutionContext()), any());
-        doReturn(expected).when(planService).update(eq(GraviteeContext.getExecutionContext()), any(UpdatePlanEntity.class));
+        doReturn(expected).when(planService).create(eq(GraviteeContext.getExecutionContext()), any());
 
         final PlanEntity actual = planService.createOrUpdatePlan(GraviteeContext.getExecutionContext(), planEntity);
 
         assertThat(actual.getId()).isEqualTo(expected.getId());
-        verify(planService, times(1)).findById(eq(GraviteeContext.getExecutionContext()), any());
-        verify(planService, times(1)).update(eq(GraviteeContext.getExecutionContext()), any(UpdatePlanEntity.class));
+        verify(planService, times(1)).create(eq(GraviteeContext.getExecutionContext()), any());
     }
 }

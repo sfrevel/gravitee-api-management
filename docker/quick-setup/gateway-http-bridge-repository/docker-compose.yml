@@ -61,7 +61,7 @@ services:
       - storage
 
   gateway_server:
-    image: graviteeio/apim-gateway:${APIM_VERSION:-nightly}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-gateway:${APIM_VERSION:-latest}
     container_name: gio_apim_gateway_server
     restart: always
     ports:
@@ -70,6 +70,7 @@ services:
       - mongodb
     volumes:
       - ./.logs/apim-gateway-server:/opt/graviteeio-gateway/logs
+      - ./.license:/opt/graviteeio-gateway/license
     environment:
       - gravitee_management_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
       - gravitee_ratelimit_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
@@ -86,7 +87,7 @@ services:
       - frontend
 
   gateway_client:
-    image: graviteeio/apim-gateway:${APIM_VERSION:-nightly}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-gateway:${APIM_VERSION:-latest}
     container_name: gio_apim_gateway_client
     restart: always
     ports:
@@ -99,6 +100,7 @@ services:
       - gateway_server
     volumes:
       - ./.logs/apim-gateway-client:/opt/graviteeio-gateway/logs
+      - ./.license:/opt/graviteeio-gateway/license
     environment:
       - gravitee_management_type=http
       - gravitee_management_http_url=http://gateway-server:18092
@@ -113,7 +115,7 @@ services:
       - frontend
 
   management_api:
-    image: graviteeio/apim-management-api:${APIM_VERSION:-nightly}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-management-api:${APIM_VERSION:-latest}
     container_name: gio_apim_management_api
     restart: always
     ports:
@@ -126,6 +128,7 @@ services:
       - elasticsearch
     volumes:
       - ./.logs/apim-management-api:/opt/graviteeio-management-api/logs
+      - ./.license:/opt/graviteeio-management-api/license
     environment:
       - gravitee_management_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
       - gravitee_analytics_elasticsearch_endpoints_0=http://elasticsearch:9200
@@ -134,7 +137,7 @@ services:
       - frontend
 
   management_ui:
-    image: graviteeio/apim-management-ui:${APIM_VERSION:-nightly}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-management-ui:${APIM_VERSION:-latest}
     container_name: gio_apim_management_ui
     restart: always
     ports:
@@ -149,7 +152,7 @@ services:
       - frontend
 
   portal_ui:
-    image: graviteeio/apim-portal-ui:${APIM_VERSION:-nightly}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-portal-ui:${APIM_VERSION:-latest}
     container_name: gio_apim_portal_ui
     restart: always
     ports:

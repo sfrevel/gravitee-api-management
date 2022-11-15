@@ -1,6 +1,6 @@
 {
   "name": "gravitee-apim-console-webui",
-  "version": "3.18.9",
+  "version": "3.20.0-SNAPSHOT",
   "description": "Gravitee.io APIM - UI Console",
   "dependencies": {
     "@angular/animations": "12.2.3",
@@ -15,12 +15,12 @@
     "@angular/upgrade": "12.2.3",
     "@asyncapi/web-component": "1.0.0-next.15",
     "@fontsource/libre-franklin": "4.4.5",
-    "@gravitee/ui-analytics": "3.5.0",
+    "@gravitee/ui-analytics": "4.5.3",
     "@gravitee/ui-components": "3.36.2",
-    "@gravitee/ui-particles-angular": "3.4.0",
-    "@gravitee/ui-policy-studio-angular": "3.0.1",
+    "@gravitee/ui-particles-angular": "4.5.3",
+    "@gravitee/ui-policy-studio-angular": "4.5.3",
     "@highcharts/map-collection": "1.1.4",
-    "@toast-ui/editor": "2.5.2",
+    "@toast-ui/editor": "2.5.4",
     "@toast-ui/editor-plugin-code-syntax-highlight": "1.0.0",
     "@uirouter/angular": "9.1.0",
     "@uirouter/angular-hybrid": "12.0.0",
@@ -68,10 +68,11 @@
     "md-color-picker": "0.2.6",
     "md-steppers": "0.4.1",
     "messageformat": "2.3.0",
-    "moment": "2.29.2",
+    "moment": "2.29.4",
     "ng-file-upload": "12.2.13",
     "ng-infinite-scroll": "1.3.0",
     "ngclipboard": "2.0.0",
+    "ngx-file-helpers": "^7.0.0",
     "read-more": "0.0.0",
     "reflect-metadata": "0.1.13",
     "rxjs": "6.6.7",
@@ -147,7 +148,8 @@
     "webpack-dev-server": "4.7.3"
   },
   "engines": {
-    "node": ">=14.17"
+    "node": "^16.10",
+    "npm": "^7.24"
   },
   "scripts": {
     "build:prod": "webpack -c ./conf/webpack-dist.conf.js",
@@ -165,7 +167,7 @@
     "storybook": "start-storybook -p 6006 -s src/assets",
     "build-storybook": "build-storybook",
     "serve": "webpack serve -c ./conf/webpack.conf.js --progress --hot",
-    "serve:apim-master": "BACKEND_ENV=apim-master-api.team-apim.gravitee.xyz npm run serve",
+    "serve:apim-master": "BACKEND_ENV=apim-master-api.team-apim.gravitee.dev npm run serve",
     "serve:prod": "node scripts/serve.js",
     "test": "jest --detectOpenHandles",
     "test:auto": "jest --watch",

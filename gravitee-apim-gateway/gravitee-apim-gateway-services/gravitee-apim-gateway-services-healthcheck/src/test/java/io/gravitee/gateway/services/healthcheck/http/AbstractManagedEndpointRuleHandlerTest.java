@@ -26,8 +26,9 @@ import io.gravitee.common.http.HttpMethod;
 import io.gravitee.definition.model.Endpoint;
 import io.gravitee.definition.model.HttpClientOptions;
 import io.gravitee.definition.model.endpoint.HttpEndpoint;
-import io.gravitee.definition.model.services.healthcheck.Request;
-import io.gravitee.definition.model.services.healthcheck.Response;
+import io.gravitee.definition.model.services.healthcheck.HealthCheckRequest;
+import io.gravitee.definition.model.services.healthcheck.HealthCheckResponse;
+import io.gravitee.definition.model.services.healthcheck.HealthCheckStep;
 import io.gravitee.el.TemplateEngine;
 import io.gravitee.gateway.handlers.api.definition.Api;
 import io.gravitee.gateway.services.healthcheck.EndpointRule;
@@ -74,12 +75,12 @@ public abstract class AbstractManagedEndpointRuleHandlerTest {
 
         EndpointRule rule = createEndpointRule();
 
-        io.gravitee.definition.model.services.healthcheck.Step step = new io.gravitee.definition.model.services.healthcheck.Step();
-        Request request = new Request("/", HttpMethod.GET);
+        HealthCheckStep step = new HealthCheckStep();
+        HealthCheckRequest request = new HealthCheckRequest("/", HttpMethod.GET);
 
         step.setRequest(request);
-        Response response = new Response();
-        response.setAssertions(Collections.singletonList(Response.DEFAULT_ASSERTION));
+        HealthCheckResponse response = new HealthCheckResponse();
+        response.setAssertions(Collections.singletonList(HealthCheckResponse.DEFAULT_ASSERTION));
         step.setResponse(response);
 
         when(rule.steps()).thenReturn(Collections.singletonList(step));
@@ -111,12 +112,12 @@ public abstract class AbstractManagedEndpointRuleHandlerTest {
         // Prepare
         EndpointRule rule = createEndpointRule();
 
-        io.gravitee.definition.model.services.healthcheck.Step step = new io.gravitee.definition.model.services.healthcheck.Step();
-        Request request = new Request("/", HttpMethod.GET);
+        HealthCheckStep step = new HealthCheckStep();
+        HealthCheckRequest request = new HealthCheckRequest("/", HttpMethod.GET);
 
         step.setRequest(request);
-        Response response = new Response();
-        response.setAssertions(Collections.singletonList(Response.DEFAULT_ASSERTION));
+        HealthCheckResponse response = new HealthCheckResponse();
+        response.setAssertions(Collections.singletonList(HealthCheckResponse.DEFAULT_ASSERTION));
         step.setResponse(response);
         when(rule.steps()).thenReturn(Collections.singletonList(step));
 
@@ -147,11 +148,11 @@ public abstract class AbstractManagedEndpointRuleHandlerTest {
         // Prepare
         EndpointRule rule = createEndpointRule();
 
-        io.gravitee.definition.model.services.healthcheck.Step step = new io.gravitee.definition.model.services.healthcheck.Step();
-        Request request = new Request("/", HttpMethod.GET);
+        HealthCheckStep step = new HealthCheckStep();
+        HealthCheckRequest request = new HealthCheckRequest("/", HttpMethod.GET);
 
         step.setRequest(request);
-        Response response = new Response();
+        HealthCheckResponse response = new HealthCheckResponse();
         response.setAssertions(Collections.singletonList("#jsonPath(#response.content, '$.status') == 'green'"));
         step.setResponse(response);
         when(rule.steps()).thenReturn(Collections.singletonList(step));
@@ -189,13 +190,13 @@ public abstract class AbstractManagedEndpointRuleHandlerTest {
         // Prepare
         EndpointRule rule = createEndpointRule("/additional-but-unused-path-for-hc");
 
-        io.gravitee.definition.model.services.healthcheck.Step step = new io.gravitee.definition.model.services.healthcheck.Step();
-        Request request = new Request("/", HttpMethod.GET);
+        HealthCheckStep step = new HealthCheckStep();
+        HealthCheckRequest request = new HealthCheckRequest("/", HttpMethod.GET);
         request.setFromRoot(true);
 
         step.setRequest(request);
-        Response response = new Response();
-        response.setAssertions(Collections.singletonList(Response.DEFAULT_ASSERTION));
+        HealthCheckResponse response = new HealthCheckResponse();
+        response.setAssertions(Collections.singletonList(HealthCheckResponse.DEFAULT_ASSERTION));
         step.setResponse(response);
         when(rule.steps()).thenReturn(Collections.singletonList(step));
 
@@ -231,8 +232,9 @@ public abstract class AbstractManagedEndpointRuleHandlerTest {
 
     private EndpointRule createEndpointRule(String targetPath) {
         EndpointRule rule = mock(EndpointRule.class);
-        Api api = new Api();
-        api.setId("an-api");
+        io.gravitee.definition.model.Api apiDefinition = new io.gravitee.definition.model.Api();
+        apiDefinition.setId("an-api");
+        Api api = new Api(apiDefinition);
         when(rule.endpoint()).thenReturn(createEndpoint(targetPath));
         when(rule.api()).thenReturn(api);
         when(rule.schedule()).thenReturn("0 */10 * ? * *");

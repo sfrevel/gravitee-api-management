@@ -17,11 +17,15 @@ package io.gravitee.gateway.jupiter.handlers.api.adapter.invoker;
 
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
+import io.gravitee.gateway.api.http.HttpHeaders;
+import io.gravitee.gateway.api.processor.ProcessorFailure;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyResponse;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.reactivex.CompletableEmitter;
-import io.reactivex.Flowable;
+import io.gravitee.gateway.jupiter.api.ExecutionFailure;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.gravitee.gateway.jupiter.core.context.interruption.InterruptionFailureException;
+import io.reactivex.rxjava3.core.CompletableEmitter;
+import io.reactivex.rxjava3.core.Flowable;
 
 /**
  * The {@link ConnectionHandlerAdapter} allows to manage the response chunks coming from the upstream.
@@ -35,7 +39,7 @@ import io.reactivex.Flowable;
  */
 public class ConnectionHandlerAdapter implements Handler<ProxyConnection> {
 
-    private final RequestExecutionContext ctx;
+    private final HttpExecutionContext ctx;
     private final CompletableEmitter nextEmitter;
     private final FlowableProxyResponse chunks;
 
@@ -45,7 +49,7 @@ public class ConnectionHandlerAdapter implements Handler<ProxyConnection> {
      * @param ctx the current execution context.
      * @param nextEmitter the emitter that can be used to notify when completed or in error and allow the reactive chain to continue.
      */
-    public ConnectionHandlerAdapter(RequestExecutionContext ctx, CompletableEmitter nextEmitter) {
+    public ConnectionHandlerAdapter(HttpExecutionContext ctx, CompletableEmitter nextEmitter) {
         this.ctx = ctx;
         this.nextEmitter = nextEmitter;
         this.chunks = new FlowableProxyResponse();
@@ -69,18 +73,65 @@ public class ConnectionHandlerAdapter implements Handler<ProxyConnection> {
 
     private void handleProxyResponse(ProxyConnection connection, ProxyResponse proxyResponse) {
         try {
-            // Set the response status with the status coming from the invoker.
+            if (proxyResponse.connected()) {
+                handleResponse(connection, proxyResponse);
+            } else {
+                handleConnectionError(proxyResponse);
+            }
+        } catch (Throwable t) {
+            nextEmitter.tryOnError(t);
+        }
+    }
+
+    private void handleResponse(ProxyConnection connection, ProxyResponse proxyResponse) {
+        // In case of connectivity error, a 502 error may already have been returned to the client and the response is complete.
+        if (!ctx.response().ended()) {
+            // Set the response status and reason with the ones coming from the invoker.
             ctx.response().status(proxyResponse.status());
+            ctx.response().reason(proxyResponse.reason());
 
             // Capture invoker headers and copy them to the response.
             proxyResponse.headers().forEach(entry -> ctx.response().headers().add(entry.getKey(), entry.getValue()));
 
             // Keep a reference on the proxy response to be able to resume it when a subscription will occur on the Flowable<Buffer> chunks.
-            chunks.initialize(ctx, connection, proxyResponse);
-
-            nextEmitter.onComplete();
-        } catch (Throwable t) {
-            nextEmitter.tryOnError(t);
+            chunks
+                .initialize(ctx, connection, proxyResponse)
+                .doOnComplete(
+                    (Runnable) () -> {
+                        // Capture invoker trailers and copy them to the response.
+                        final HttpHeaders trailers = proxyResponse.trailers();
+                        if (trailers != null && !trailers.isEmpty()) {
+                            trailers.forEach((entry -> ctx.response().trailers().add(entry.getKey(), entry.getValue())));
+                        }
+                    }
+                );
+        } else {
+            tryCancel(proxyResponse);
         }
+
+        nextEmitter.onComplete();
+    }
+
+    private void handleConnectionError(ProxyResponse proxyResponse) {
+        if (proxyResponse instanceof ProcessorFailure) {
+            final ProcessorFailure failureResponse = (ProcessorFailure) proxyResponse;
+            nextEmitter.tryOnError(new InterruptionFailureException(toExecutionFailure(failureResponse)));
+        } else {
+            nextEmitter.tryOnError(new InterruptionFailureException(new ExecutionFailure(proxyResponse.status())));
+        }
+    }
+
+    private ExecutionFailure toExecutionFailure(ProcessorFailure failureResponse) {
+        return new ExecutionFailure(failureResponse.statusCode())
+            .key(failureResponse.key())
+            .message(failureResponse.message())
+            .contentType(failureResponse.contentType())
+            .parameters(failureResponse.parameters());
+    }
+
+    private void tryCancel(ProxyResponse proxyResponse) {
+        try {
+            proxyResponse.cancel();
+        } catch (Throwable ignored) {}
     }
 }

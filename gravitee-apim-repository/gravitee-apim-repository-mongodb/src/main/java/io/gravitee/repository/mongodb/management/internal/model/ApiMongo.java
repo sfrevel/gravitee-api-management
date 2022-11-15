@@ -42,6 +42,16 @@ public class ApiMongo extends Auditable {
      */
     private String crossId;
 
+    /**
+     * The origin of the api (management, kubernetes, ...).
+     */
+    private String origin;
+
+    /**
+     * How the api is managed by the origin (fully, api_definition_only, ...)
+     */
+    private String mode;
+
     @Field("name")
     private String name;
 
@@ -51,7 +61,11 @@ public class ApiMongo extends Auditable {
 
     private String description;
 
+    private String definitionVersion;
+
     private String definition;
+
+    private String type;
 
     private String lifecycleState;
 
@@ -237,9 +251,13 @@ public class ApiMongo extends Auditable {
         final StringBuilder sb = new StringBuilder("Api{");
         sb.append("id='").append(id).append('\'');
         sb.append(", crossId='").append(crossId).append('\'');
+        sb.append(", origin='").append(crossId).append('\'');
+        sb.append(", mode='").append(crossId).append('\'');
         sb.append(", name='").append(name).append('\'');
+        sb.append(", type='").append(type).append('\'');
         sb.append(", environmentId='").append(environmentId).append('\'');
         sb.append(", version='").append(version).append('\'');
+        sb.append(", definitionVersion='").append(definitionVersion).append('\'');
         sb.append(", state='").append(lifecycleState).append('\'');
         sb.append(", visibility='").append(visibility).append('\'');
         sb.append(", groups='").append(groups).append('\'');
@@ -248,5 +266,39 @@ public class ApiMongo extends Auditable {
         sb.append(", disableMembershipNotifications='").append(disableMembershipNotifications).append('\'');
         sb.append('}');
         return sb.toString();
+    }
+
+    public String getDefinitionVersion() {
+        return definitionVersion;
+    }
+
+    public ApiMongo setDefinitionVersion(final String definitionVersion) {
+        this.definitionVersion = definitionVersion;
+        return this;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public ApiMongo setType(final String type) {
+        this.type = type;
+        return this;
+    }
+
+    public String getOrigin() {
+        return origin;
+    }
+
+    public void setOrigin(String origin) {
+        this.origin = origin;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
     }
 }

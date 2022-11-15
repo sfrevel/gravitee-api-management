@@ -24,8 +24,10 @@ import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.http2.HttpFrame;
 import io.gravitee.gateway.api.stream.ReadStream;
 import io.gravitee.gateway.api.ws.WebSocket;
-import io.gravitee.gateway.jupiter.api.context.Request;
+import io.gravitee.gateway.jupiter.api.context.HttpRequest;
+import io.gravitee.gateway.jupiter.http.vertx.VertxHttpServerRequest;
 import io.gravitee.reporter.api.http.Metrics;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLSession;
 
 /**
@@ -34,12 +36,17 @@ import javax.net.ssl.SSLSession;
  */
 public class RequestAdapter implements io.gravitee.gateway.api.Request {
 
-    private final Request request;
+    private final HttpRequest request;
 
     private Runnable onResumeHandler;
+    private Handler<Buffer> bodyHandler;
+    private Handler<Void> endHandler;
+    private WebSocketAdapter adaptedWebSocket;
+    private final AtomicBoolean hasBeenResumed;
 
-    public RequestAdapter(Request request) {
+    public RequestAdapter(HttpRequest request) {
         this.request = request;
+        this.hasBeenResumed = new AtomicBoolean(false);
     }
 
     public void onResume(Runnable onResume) {
@@ -48,7 +55,17 @@ public class RequestAdapter implements io.gravitee.gateway.api.Request {
 
     @Override
     public ReadStream<Buffer> resume() {
-        onResumeHandler.run();
+        if (hasBeenResumed.compareAndSet(false, true)) {
+            onResumeHandler.run();
+        } else {
+            ((VertxHttpServerRequest) request).resume();
+        }
+        return this;
+    }
+
+    @Override
+    public ReadStream<Buffer> pause() {
+        ((VertxHttpServerRequest) request).pause();
         return this;
     }
 
@@ -159,12 +176,15 @@ public class RequestAdapter implements io.gravitee.gateway.api.Request {
 
     @Override
     public boolean isWebSocket() {
-        return false;
+        return request.isWebSocket();
     }
 
     @Override
     public WebSocket websocket() {
-        return null;
+        if (this.adaptedWebSocket == null) {
+            this.adaptedWebSocket = new WebSocketAdapter(request.webSocket());
+        }
+        return adaptedWebSocket;
     }
 
     @Override
@@ -179,11 +199,25 @@ public class RequestAdapter implements io.gravitee.gateway.api.Request {
 
     @Override
     public ReadStream<Buffer> bodyHandler(Handler<Buffer> bodyHandler) {
+        this.bodyHandler = bodyHandler;
         return this;
     }
 
     @Override
     public ReadStream<Buffer> endHandler(Handler<Void> endHandler) {
+        this.endHandler = endHandler;
         return this;
+    }
+
+    public Handler<Buffer> getBodyHandler() {
+        return bodyHandler;
+    }
+
+    public void setBodyHandler(Handler<Buffer> bodyHandler) {
+        this.bodyHandler = bodyHandler;
+    }
+
+    public Handler<Void> getEndHandler() {
+        return endHandler;
     }
 }

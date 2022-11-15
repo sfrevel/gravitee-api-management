@@ -16,7 +16,7 @@
 package io.gravitee.gateway.jupiter.policy.tracing;
 
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
 import io.gravitee.gateway.jupiter.core.tracing.AbstractTracingHook;
 import io.gravitee.tracing.api.Span;
 
@@ -42,12 +42,7 @@ public abstract class AbstractTracingPolicyHook extends AbstractTracingHook {
     }
 
     @Override
-    protected void withAttributes(
-        final String id,
-        final RequestExecutionContext ctx,
-        final ExecutionPhase executionPhase,
-        final Span span
-    ) {
+    protected void withAttributes(final String id, final ExecutionContext ctx, final ExecutionPhase executionPhase, final Span span) {
         span.withAttribute(SPAN_POLICY_ATTR, id);
     }
 }

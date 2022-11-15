@@ -24,7 +24,7 @@ import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.context.MutableExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.reactor.Reactable;
-import io.gravitee.gateway.reactor.handler.context.ExecutionContextFactory;
+import io.gravitee.gateway.reactor.handler.context.V3ExecutionContextFactory;
 import io.gravitee.gateway.reactor.handler.http.ContextualizedHttpServerRequest;
 import java.util.List;
 import org.slf4j.Logger;
@@ -38,21 +38,13 @@ public abstract class AbstractReactorHandler<T extends Reactable>
     extends AbstractLifecycleComponent<ReactorHandler>
     implements ReactorHandler {
 
-    protected final Logger logger = LoggerFactory.getLogger(this.getClass());
-
     public static final String ATTR_ENTRYPOINT = ExecutionContext.ATTR_PREFIX + "entrypoint";
-
-    private ExecutionContextFactory executionContextFactory;
-
+    protected final Logger logger = LoggerFactory.getLogger(this.getClass());
     protected final T reactable;
+    private V3ExecutionContextFactory executionContextFactory;
 
     protected AbstractReactorHandler(T reactable) {
         this.reactable = reactable;
-    }
-
-    @Override
-    public T reactable() {
-        return reactable;
     }
 
     @Override
@@ -87,23 +79,23 @@ public abstract class AbstractReactorHandler<T extends Reactable>
 
     protected void contextualizeRequest(ExecutionContext context) {
         ((MutableExecutionContext) context).request(
-                new ContextualizedHttpServerRequest(((Entrypoint) context.getAttribute(ATTR_ENTRYPOINT)).path(), context.request())
+                new ContextualizedHttpServerRequest(((HttpAcceptor) context.getAttribute(ATTR_ENTRYPOINT)).path(), context.request())
             );
     }
 
     protected void dumpVirtualHosts() {
-        List<Entrypoint> entrypoints = reactable.entrypoints();
+        List<Acceptor<?>> httpAcceptors = acceptors();
         logger.debug("{} ready to accept requests on:", this);
-        entrypoints.forEach(
-            entrypoint -> {
-                logger.debug("\t{}", entrypoint);
+        httpAcceptors.forEach(
+            httpAcceptor -> {
+                logger.debug("\t{}", httpAcceptor);
             }
         );
     }
 
     protected abstract void doHandle(ExecutionContext executionContext, Handler<ExecutionContext> endHandler);
 
-    public void setExecutionContextFactory(ExecutionContextFactory executionContextFactory) {
+    public void setExecutionContextFactory(V3ExecutionContextFactory executionContextFactory) {
         this.executionContextFactory = executionContextFactory;
     }
 }

@@ -24,11 +24,14 @@ import io.gravitee.el.ExpressionLanguageInitializer;
 import io.gravitee.gateway.connector.spring.ConnectorConfiguration;
 import io.gravitee.gateway.dictionary.spring.DictionaryConfiguration;
 import io.gravitee.gateway.env.GatewayConfiguration;
+import io.gravitee.gateway.env.TimeoutConfiguration;
 import io.gravitee.gateway.handlers.api.spring.ApiHandlerConfiguration;
+import io.gravitee.gateway.jupiter.api.connector.ConnectorHelper;
 import io.gravitee.gateway.platform.spring.PlatformConfiguration;
 import io.gravitee.gateway.policy.spring.PolicyConfiguration;
 import io.gravitee.gateway.reactor.spring.ReactorConfiguration;
 import io.gravitee.gateway.report.spring.ReporterConfiguration;
+import io.gravitee.gateway.repository.plugins.GatewayRepositoryScopeProvider;
 import io.gravitee.gateway.standalone.node.GatewayNode;
 import io.gravitee.gateway.standalone.node.GatewayNodeMetadataResolver;
 import io.gravitee.gateway.standalone.vertx.VertxReactorConfiguration;
@@ -38,9 +41,12 @@ import io.gravitee.node.cluster.spring.ClusterConfiguration;
 import io.gravitee.node.container.NodeFactory;
 import io.gravitee.node.kubernetes.spring.NodeKubernetesConfiguration;
 import io.gravitee.node.vertx.spring.VertxConfiguration;
+import io.gravitee.platform.repository.api.RepositoryScopeProvider;
 import io.gravitee.plugin.alert.spring.AlertPluginConfiguration;
 import io.gravitee.plugin.core.spring.PluginConfiguration;
 import io.gravitee.plugin.discovery.spring.ServiceDiscoveryPluginConfiguration;
+import io.gravitee.plugin.endpoint.spring.EndpointConnectorPluginConfiguration;
+import io.gravitee.plugin.entrypoint.spring.EntrypointConnectorPluginConfiguration;
 import io.gravitee.plugin.policy.spring.PolicyPluginConfiguration;
 import io.gravitee.plugin.resource.spring.ResourcePluginConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -70,10 +76,18 @@ import org.springframework.context.annotation.Import;
         PolicyConfiguration.class,
         PlatformConfiguration.class,
         ConnectorConfiguration.class,
+        EntrypointConnectorPluginConfiguration.class,
+        EndpointConnectorPluginConfiguration.class,
         ClusterConfiguration.class,
+        TimeoutConfiguration.class,
     }
 )
 public class StandaloneConfiguration {
+
+    @Bean
+    public static GatewayConfiguration gatewayConfiguration() {
+        return new GatewayConfiguration();
+    }
 
     @Bean
     public EventManager eventManager() {
@@ -88,6 +102,14 @@ public class StandaloneConfiguration {
     }
 
     @Bean
+    public ConnectorHelper connectorHelper(
+        final io.gravitee.node.api.configuration.Configuration configuration,
+        final ObjectMapper objectMapper
+    ) {
+        return new ConnectorHelper(configuration, objectMapper);
+    }
+
+    @Bean
     public ExpressionLanguageInitializer expressionLanguageInitializer() {
         return new ExpressionLanguageInitializer();
     }
@@ -98,8 +120,8 @@ public class StandaloneConfiguration {
     }
 
     @Bean
-    public static GatewayConfiguration gatewayConfiguration() {
-        return new GatewayConfiguration();
+    public RepositoryScopeProvider repositoryScopeProvider() {
+        return new GatewayRepositoryScopeProvider();
     }
 
     @Bean

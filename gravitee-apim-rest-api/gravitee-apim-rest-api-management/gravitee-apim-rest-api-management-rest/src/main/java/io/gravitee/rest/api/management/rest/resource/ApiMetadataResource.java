@@ -21,9 +21,9 @@ import io.gravitee.rest.api.management.rest.security.Permissions;
 import io.gravitee.rest.api.model.ApiMetadataEntity;
 import io.gravitee.rest.api.model.NewApiMetadataEntity;
 import io.gravitee.rest.api.model.UpdateApiMetadataEntity;
-import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.model.permissions.RolePermission;
 import io.gravitee.rest.api.model.permissions.RolePermissionAction;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
 import io.gravitee.rest.api.service.ApiMetadataService;
 import io.gravitee.rest.api.service.common.ExecutionContext;
 import io.gravitee.rest.api.service.common.GraviteeContext;
@@ -39,7 +39,14 @@ import java.util.List;
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
-import javax.ws.rs.*;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.Response;
 
 /**
@@ -51,7 +58,7 @@ import javax.ws.rs.core.Response;
 public class ApiMetadataResource extends AbstractResource {
 
     @Inject
-    private ApiMetadataService metadataService;
+    private ApiMetadataService apiMetadataService;
 
     @Inject
     private SearchEngineService searchEngineService;
@@ -78,7 +85,7 @@ public class ApiMetadataResource extends AbstractResource {
     @ApiResponse(responseCode = "500", description = "Internal server error")
     @Permissions({ @Permission(value = RolePermission.API_METADATA, acls = RolePermissionAction.READ) })
     public List<ApiMetadataEntity> getApiMetadatas() {
-        return metadataService.findAllByApi(api);
+        return apiMetadataService.findAllByApi(api);
     }
 
     @GET
@@ -97,7 +104,7 @@ public class ApiMetadataResource extends AbstractResource {
     @ApiResponse(responseCode = "500", description = "Internal server error")
     @Permissions({ @Permission(value = RolePermission.API_METADATA, acls = RolePermissionAction.READ) })
     public ApiMetadataEntity getApiMetadata(@PathParam("metadata") String metadata) {
-        return metadataService.findByIdAndApi(metadata, api);
+        return apiMetadataService.findByIdAndApi(metadata, api);
     }
 
     @POST
@@ -116,9 +123,12 @@ public class ApiMetadataResource extends AbstractResource {
         metadata.setApiId(api);
 
         final ExecutionContext executionContext = GraviteeContext.getExecutionContext();
-        final ApiMetadataEntity apiMetadataEntity = metadataService.create(executionContext, metadata);
-        ApiEntity apiEntity = apiService.fetchMetadataForApi(executionContext, apiService.findById(executionContext, api));
-        searchEngineService.index(executionContext, apiEntity, false);
+        final ApiMetadataEntity apiMetadataEntity = apiMetadataService.create(executionContext, metadata);
+        GenericApiEntity genericApiEntity = apiMetadataService.fetchMetadataForApi(
+            executionContext,
+            apiSearchService.findGenericById(executionContext, api)
+        );
+        searchEngineService.index(executionContext, genericApiEntity, false);
         return Response.created(this.getLocationHeader(apiMetadataEntity.getKey())).entity(apiMetadataEntity).build();
     }
 
@@ -141,7 +151,7 @@ public class ApiMetadataResource extends AbstractResource {
         // prevent update of a metadata on an another API
         metadata.setApiId(api);
 
-        return Response.ok(metadataService.update(GraviteeContext.getExecutionContext(), metadata)).build();
+        return Response.ok(apiMetadataService.update(GraviteeContext.getExecutionContext(), metadata)).build();
     }
 
     @DELETE
@@ -151,12 +161,12 @@ public class ApiMetadataResource extends AbstractResource {
     @ApiResponse(responseCode = "500", description = "Internal server error")
     @Permissions({ @Permission(value = RolePermission.API_METADATA, acls = RolePermissionAction.DELETE) })
     public Response deleteApiMetadata(@PathParam("metadata") String metadata) {
-        metadataService.delete(GraviteeContext.getExecutionContext(), metadata, api);
-        ApiEntity apiEntity = apiService.fetchMetadataForApi(
+        apiMetadataService.delete(GraviteeContext.getExecutionContext(), metadata, api);
+        GenericApiEntity genericApiEntity = apiMetadataService.fetchMetadataForApi(
             GraviteeContext.getExecutionContext(),
-            apiService.findById(GraviteeContext.getExecutionContext(), api)
+            apiSearchService.findGenericById(GraviteeContext.getExecutionContext(), api)
         );
-        searchEngineService.index(GraviteeContext.getExecutionContext(), apiEntity, false);
+        searchEngineService.index(GraviteeContext.getExecutionContext(), genericApiEntity, false);
         return Response.noContent().build();
     }
 }

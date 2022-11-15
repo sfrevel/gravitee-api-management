@@ -15,24 +15,36 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.adapter.invoker;
 
+import static io.gravitee.common.http.HttpStatusCode.INTERNAL_SERVER_ERROR_500;
+import static io.gravitee.gateway.jupiter.handlers.api.adapter.invoker.InvokerAdapter.GATEWAY_CLIENT_CONNECTION_ERROR;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import io.gravitee.gateway.api.ExecutionContext;
+import io.gravitee.common.http.HttpStatusCode;
 import io.gravitee.gateway.api.Invoker;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.stream.ReadWriteStream;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.ExecutionFailure;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.InternalContextAttributes;
 import io.gravitee.gateway.jupiter.api.context.Response;
-import io.reactivex.CompletableEmitter;
-import io.reactivex.observers.TestObserver;
+import io.gravitee.gateway.jupiter.core.context.interruption.InterruptionFailureException;
+import io.gravitee.gateway.jupiter.policy.adapter.context.ExecutionContextAdapter;
+import io.gravitee.gateway.jupiter.policy.adapter.context.RequestAdapter;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.CompletableEmitter;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.observers.TestObserver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.platform.commons.function.Try;
 import org.junit.platform.commons.util.ReflectionUtils;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * @author Jeoffrey HAEYAERT (jeoffrey.haeyaert at graviteesource.com)
@@ -47,10 +59,13 @@ class InvokerAdapterTest {
     private Invoker invoker;
 
     @Mock
+    private RequestAdapter adaptedRequest;
+
+    @Mock
     private Response response;
 
     @Mock
-    private RequestExecutionContext ctx;
+    private ExecutionContext ctx;
 
     private InvokerAdapter cut;
 
@@ -60,10 +75,162 @@ class InvokerAdapterTest {
     }
 
     @Test
-    public void shouldCompleteAndSetChunkedBody() {
+    void shouldCompleteAndSetChunkedBody() {
         when(ctx.response()).thenReturn(response);
 
         // Simulate the ConnectionHandlerAdapter behavior by completing the nextEmitter (this will complete the InvokerAdapter execution).
+        mockComplete();
+
+        final TestObserver<Void> obs = cut.invoke(ctx).test();
+
+        obs.assertComplete();
+
+        // Verify the response body has been set.
+        verify(response).chunks(any(FlowableProxyResponse.class));
+    }
+
+    @Test
+    void shouldGetIdFromInvokerClassName() {
+        final String id = cut.getId();
+
+        assertNotNull(id);
+        assertTrue(id.startsWith("invoker"));
+    }
+
+    @Test
+    void shouldInterruptWith502WhenExceptionOccurs() {
+        when(ctx.response()).thenReturn(response);
+        when(ctx.interruptWith(any(ExecutionFailure.class)))
+            .thenAnswer(i -> Completable.error(new InterruptionFailureException(i.getArgument(0))));
+
+        doThrow(new RuntimeException(MOCK_EXCEPTION_MESSAGE))
+            .when(invoker)
+            .invoke(any(io.gravitee.gateway.api.ExecutionContext.class), any(ReadWriteStream.class), any(Handler.class));
+
+        final TestObserver<Void> obs = cut.invoke(ctx).test();
+
+        obs.assertError(
+            e -> {
+                assertTrue(e instanceof InterruptionFailureException);
+                assertEquals(HttpStatusCode.BAD_GATEWAY_502, ((InterruptionFailureException) e).getExecutionFailure().statusCode());
+                assertEquals(GATEWAY_CLIENT_CONNECTION_ERROR, ((InterruptionFailureException) e).getExecutionFailure().key());
+                return true;
+            }
+        );
+        verify(response).chunks(Flowable.empty());
+    }
+
+    @Test
+    void shouldInterruptAndPropagateFailureWhenInterruptionFailureExceptionOccurs() {
+        when(ctx.response()).thenReturn(response);
+        when(ctx.interruptWith(any(ExecutionFailure.class)))
+            .thenAnswer(i -> Completable.error(new InterruptionFailureException(i.getArgument(0))));
+
+        final String failureContentType = "text/plain";
+        final String failureKey = "INTERNAL_ERROR";
+
+        final InterruptionFailureException interruptionFailureException = new InterruptionFailureException(
+            new ExecutionFailure(INTERNAL_SERVER_ERROR_500).contentType(failureContentType).message(MOCK_EXCEPTION_MESSAGE).key(failureKey)
+        );
+
+        final ArgumentCaptor<ConnectionHandlerAdapter> connectionHandlerAdapterCaptor = ArgumentCaptor.forClass(
+            ConnectionHandlerAdapter.class
+        );
+
+        doNothing()
+            .when(invoker)
+            .invoke(
+                any(io.gravitee.gateway.api.ExecutionContext.class),
+                any(ReadWriteStream.class),
+                connectionHandlerAdapterCaptor.capture()
+            );
+
+        final TestObserver<Void> obs = cut.invoke(ctx).test();
+
+        // Simulate an InterruptionFailureException from the connection handler.
+        final ConnectionHandlerAdapter connectionHandlerAdapter = connectionHandlerAdapterCaptor.getValue();
+        final CompletableEmitter nextEmitter = (CompletableEmitter) ReflectionTestUtils.getField(connectionHandlerAdapter, "nextEmitter");
+        nextEmitter.tryOnError(interruptionFailureException);
+
+        obs.assertError(
+            e -> {
+                assertTrue(e instanceof InterruptionFailureException);
+                final ExecutionFailure executionFailure = ((InterruptionFailureException) e).getExecutionFailure();
+                assertEquals(INTERNAL_SERVER_ERROR_500, executionFailure.statusCode());
+                assertEquals(failureKey, executionFailure.key());
+                assertEquals(failureContentType, executionFailure.contentType());
+                assertEquals(MOCK_EXCEPTION_MESSAGE, executionFailure.message());
+                return true;
+            }
+        );
+        verify(response).chunks(Flowable.empty());
+    }
+
+    @Test
+    void shouldRestoreContextWhenInvokerExecutionCompleted() {
+        final ExecutionContextAdapter adaptedExecutionContext = mock(ExecutionContextAdapter.class);
+
+        when(ctx.getInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_ADAPTED_CONTEXT)).thenReturn(adaptedExecutionContext);
+        when(adaptedExecutionContext.getDelegate()).thenReturn(ctx);
+        when(adaptedExecutionContext.request()).thenReturn(adaptedRequest);
+        when(ctx.response()).thenReturn(response);
+
+        mockComplete();
+
+        final TestObserver<Void> obs = cut.invoke(ctx).test();
+
+        obs.assertComplete();
+
+        // Verify the response body has been set.
+        verify(response).chunks(any(FlowableProxyResponse.class));
+        verify(adaptedExecutionContext).restore();
+    }
+
+    @Test
+    void shouldRestoreContextWhenInvokerExecutionCancelled() {
+        final ExecutionContextAdapter adaptedExecutionContext = mock(ExecutionContextAdapter.class);
+
+        when(ctx.getInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_ADAPTED_CONTEXT)).thenReturn(adaptedExecutionContext);
+        when(adaptedExecutionContext.getDelegate()).thenReturn(ctx);
+        when(adaptedExecutionContext.request()).thenReturn(adaptedRequest);
+        when(ctx.response()).thenReturn(response);
+
+        final TestObserver<Void> obs = cut.invoke(ctx).test(true);
+
+        obs.assertNotComplete();
+
+        verify(adaptedExecutionContext).restore();
+    }
+
+    @Test
+    void shouldRestoreContextWhenInvokerExecutionError() {
+        final ExecutionContextAdapter adaptedExecutionContext = mock(ExecutionContextAdapter.class);
+
+        when(ctx.getInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_ADAPTED_CONTEXT)).thenReturn(adaptedExecutionContext);
+        when(adaptedExecutionContext.getDelegate()).thenReturn(ctx);
+        when(adaptedExecutionContext.request()).thenReturn(adaptedRequest);
+        when(ctx.response()).thenReturn(response);
+        when(ctx.interruptWith(any(ExecutionFailure.class)))
+            .thenAnswer(i -> Completable.error(new InterruptionFailureException(i.getArgument(0))));
+
+        doThrow(new RuntimeException(MOCK_EXCEPTION_MESSAGE))
+            .when(invoker)
+            .invoke(any(io.gravitee.gateway.api.ExecutionContext.class), any(ReadWriteStream.class), any(Handler.class));
+
+        final TestObserver<Void> obs = cut.invoke(ctx).test();
+
+        obs.assertError(
+            e -> {
+                assertTrue(e instanceof InterruptionFailureException);
+                assertEquals(HttpStatusCode.BAD_GATEWAY_502, ((InterruptionFailureException) e).getExecutionFailure().statusCode());
+                return true;
+            }
+        );
+        verify(adaptedExecutionContext).restore();
+        verify(response).chunks(Flowable.empty());
+    }
+
+    private void mockComplete() {
         doAnswer(
                 invocation -> {
                     ConnectionHandlerAdapter connectionHandlerAdapter = invocation.getArgument(2);
@@ -77,26 +244,6 @@ class InvokerAdapterTest {
                 }
             )
             .when(invoker)
-            .invoke(any(ExecutionContext.class), any(ReadWriteStream.class), any(Handler.class));
-
-        final TestObserver<Void> obs = cut.invoke(ctx).test();
-
-        obs.assertComplete();
-
-        // Verify the response body has been set.
-        verify(response).chunks(any(FlowableProxyResponse.class));
-    }
-
-    @Test
-    public void shouldErrorWhenExceptionOccurs() {
-        when(ctx.response()).thenReturn(response);
-
-        doThrow(new RuntimeException(MOCK_EXCEPTION_MESSAGE))
-            .when(invoker)
-            .invoke(any(ExecutionContext.class), any(ReadWriteStream.class), any(Handler.class));
-
-        final TestObserver<Void> obs = cut.invoke(ctx).test();
-
-        obs.assertError(e -> e.getCause().getMessage().equals(MOCK_EXCEPTION_MESSAGE));
+            .invoke(any(io.gravitee.gateway.api.ExecutionContext.class), any(ReadWriteStream.class), any(Handler.class));
     }
 }

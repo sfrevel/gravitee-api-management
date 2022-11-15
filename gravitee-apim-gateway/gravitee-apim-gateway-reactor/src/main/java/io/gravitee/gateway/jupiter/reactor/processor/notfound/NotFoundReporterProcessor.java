@@ -16,13 +16,13 @@
 package io.gravitee.gateway.jupiter.reactor.processor.notfound;
 
 import io.gravitee.gateway.api.buffer.Buffer;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.processor.Processor;
 import io.gravitee.gateway.report.ReporterService;
 import io.gravitee.reporter.api.common.Request;
 import io.gravitee.reporter.api.http.Metrics;
 import io.gravitee.reporter.api.log.Log;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +45,7 @@ public class NotFoundReporterProcessor implements Processor {
     }
 
     @Override
-    public Completable execute(final RequestExecutionContext ctx) {
+    public Completable execute(final MutableExecutionContext ctx) {
         return Completable
             .defer(
                 () -> {

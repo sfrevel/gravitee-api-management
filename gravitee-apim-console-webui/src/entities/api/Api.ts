@@ -53,17 +53,22 @@ export interface Api {
   picture_url?: string;
   resources?: ApiResource[];
   path_mappings?: string[];
-  response_templates?: Record<string, unknown>;
+  response_templates?: Record<string, Record<string, ApiResponseTemplate>>;
   lifecycle_state?: ApiLifecycleState;
   workflow_state?: ApiWorkflowState;
   disable_membership_notifications?: boolean;
   background_url?: string;
 
   etag?: string;
+  definition_context: ApiDefinitionContext;
 }
 
 export type ApiVisibility = 'PUBLIC' | 'PRIVATE';
 export type ApiState = 'INITIALIZED' | 'STOPPED' | 'STARTED' | 'CLOSED';
+export type ApiOrigin = 'management' | 'kubernetes';
+interface ApiDefinitionContext {
+  origin: ApiOrigin;
+}
 
 export interface ApiEntrypoint {
   tags?: string[];
@@ -121,3 +126,19 @@ export interface ApiResource {
 export type ApiLifecycleState = 'CREATED' | 'PUBLISHED' | 'UNPUBLISHED' | 'DEPRECATED' | 'ARCHIVED';
 
 export type ApiWorkflowState = 'DRAFT' | 'IN_REVIEW' | 'REQUEST_FOR_CHANGES' | 'REVIEW_OK';
+
+export interface ApiStateEntity {
+  api_id: string;
+  is_synchronized: boolean;
+}
+
+export interface ApiQualityMetrics {
+  score: number;
+  metrics_passed: Record<string, boolean>;
+}
+
+export interface ApiResponseTemplate {
+  body?: string;
+  headers?: Record<string, string>;
+  status?: number;
+}

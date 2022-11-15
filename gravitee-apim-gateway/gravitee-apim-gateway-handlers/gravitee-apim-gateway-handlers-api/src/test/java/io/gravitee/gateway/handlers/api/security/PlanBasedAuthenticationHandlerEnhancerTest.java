@@ -19,8 +19,8 @@ import static io.gravitee.repository.management.model.Plan.PlanSecurityType.*;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.when;
 
+import io.gravitee.definition.model.Api;
 import io.gravitee.definition.model.Plan;
-import io.gravitee.gateway.handlers.api.definition.Api;
 import io.gravitee.gateway.security.apikey.ApiKeyAuthenticationHandler;
 import io.gravitee.gateway.security.core.AuthenticationHandler;
 import io.gravitee.gateway.security.jwt.JWTAuthenticationHandler;

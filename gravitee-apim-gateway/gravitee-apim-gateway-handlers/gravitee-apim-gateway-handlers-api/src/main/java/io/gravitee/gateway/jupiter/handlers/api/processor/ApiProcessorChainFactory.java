@@ -16,6 +16,7 @@
 package io.gravitee.gateway.jupiter.handlers.api.processor;
 
 import io.gravitee.definition.model.Cors;
+import io.gravitee.gateway.core.logging.utils.LoggingUtils;
 import io.gravitee.gateway.handlers.api.definition.Api;
 import io.gravitee.gateway.jupiter.api.hook.ProcessorHook;
 import io.gravitee.gateway.jupiter.core.processor.Processor;
@@ -26,8 +27,12 @@ import io.gravitee.gateway.jupiter.handlers.api.processor.cors.CorsSimpleRequest
 import io.gravitee.gateway.jupiter.handlers.api.processor.error.SimpleFailureProcessor;
 import io.gravitee.gateway.jupiter.handlers.api.processor.error.template.ResponseTemplateBasedFailureProcessor;
 import io.gravitee.gateway.jupiter.handlers.api.processor.forward.XForwardedPrefixProcessor;
+import io.gravitee.gateway.jupiter.handlers.api.processor.logging.LogRequestProcessor;
+import io.gravitee.gateway.jupiter.handlers.api.processor.logging.LogResponseProcessor;
 import io.gravitee.gateway.jupiter.handlers.api.processor.pathmapping.PathMappingProcessor;
 import io.gravitee.gateway.jupiter.handlers.api.processor.plan.PlanProcessor;
+import io.gravitee.gateway.jupiter.handlers.api.processor.shutdown.ShutdownProcessor;
+import io.gravitee.node.api.Node;
 import io.gravitee.node.api.configuration.Configuration;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,10 +46,12 @@ import java.util.regex.Pattern;
 public class ApiProcessorChainFactory {
 
     private final boolean overrideXForwardedPrefix;
+    private final Node node;
     private final List<ProcessorHook> processorHooks = new ArrayList<>();
 
-    public ApiProcessorChainFactory(final Configuration configuration) {
-        overrideXForwardedPrefix = configuration.getProperty("handlers.request.headers.x-forwarded-prefix", Boolean.class, false);
+    public ApiProcessorChainFactory(final Configuration configuration, Node node) {
+        this.overrideXForwardedPrefix = configuration.getProperty("handlers.request.headers.x-forwarded-prefix", Boolean.class, false);
+        this.node = node;
 
         boolean tracing = configuration.getProperty("services.tracing.enabled", Boolean.class, false);
         if (tracing) {
@@ -55,7 +62,7 @@ public class ApiProcessorChainFactory {
     public ProcessorChain preProcessorChain(final Api api) {
         List<Processor> preProcessorList = new ArrayList<>();
 
-        Cors cors = api.getProxy().getCors();
+        Cors cors = api.getDefinition().getProxy().getCors();
         if (cors != null && cors.isEnabled()) {
             preProcessorList.add(CorsPreflightRequestProcessor.instance());
         }
@@ -64,6 +71,11 @@ public class ApiProcessorChainFactory {
         }
 
         preProcessorList.add(PlanProcessor.instance());
+
+        if (LoggingUtils.getLoggingContext(api.getDefinition()) != null) {
+            preProcessorList.add(LogRequestProcessor.instance());
+        }
+
         ProcessorChain processorChain = new ProcessorChain("processor-chain-pre-api", preProcessorList);
         processorChain.addHooks(processorHooks);
         return processorChain;
@@ -71,13 +83,19 @@ public class ApiProcessorChainFactory {
 
     public ProcessorChain postProcessorChain(final Api api) {
         List<Processor> postProcessorList = new ArrayList<>();
-        Cors cors = api.getProxy().getCors();
+        postProcessorList.add(new ShutdownProcessor(node));
+
+        Cors cors = api.getDefinition().getProxy().getCors();
         if (cors != null && cors.isEnabled()) {
             postProcessorList.add(CorsSimpleRequestProcessor.instance());
         }
-        Map<String, Pattern> pathMappings = api.getPathMappings();
+        Map<String, Pattern> pathMappings = api.getDefinition().getPathMappings();
         if (pathMappings != null && !pathMappings.isEmpty()) {
             postProcessorList.add(PathMappingProcessor.instance());
+        }
+
+        if (LoggingUtils.getLoggingContext(api.getDefinition()) != null) {
+            postProcessorList.add(LogResponseProcessor.instance());
         }
 
         ProcessorChain processorChain = new ProcessorChain("processor-chain-post-api", postProcessorList);
@@ -87,22 +105,26 @@ public class ApiProcessorChainFactory {
 
     public ProcessorChain errorProcessorChain(final Api api) {
         List<Processor> errorProcessorList = new ArrayList<>();
-        Cors cors = api.getProxy().getCors();
+        Cors cors = api.getDefinition().getProxy().getCors();
         if (cors != null && cors.isEnabled()) {
             errorProcessorList.add(CorsSimpleRequestProcessor.instance());
         }
-        Map<String, Pattern> pathMappings = api.getPathMappings();
+        Map<String, Pattern> pathMappings = api.getDefinition().getPathMappings();
         if (pathMappings != null && !pathMappings.isEmpty()) {
             errorProcessorList.add(PathMappingProcessor.instance());
         }
 
-        if (api.getResponseTemplates() != null && !api.getResponseTemplates().isEmpty()) {
+        if (api.getDefinition().getResponseTemplates() != null && !api.getDefinition().getResponseTemplates().isEmpty()) {
             errorProcessorList.add(ResponseTemplateBasedFailureProcessor.instance());
         } else {
             errorProcessorList.add(SimpleFailureProcessor.instance());
         }
 
-        ProcessorChain processorChain = new ProcessorChain("error-api-processor-chain", errorProcessorList);
+        if (LoggingUtils.getLoggingContext(api.getDefinition()) != null) {
+            errorProcessorList.add(LogResponseProcessor.instance());
+        }
+
+        ProcessorChain processorChain = new ProcessorChain("processor-chain-error-api", errorProcessorList);
         processorChain.addHooks(processorHooks);
         return processorChain;
     }

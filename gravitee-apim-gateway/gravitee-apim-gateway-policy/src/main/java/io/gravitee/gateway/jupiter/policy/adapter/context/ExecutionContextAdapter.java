@@ -15,14 +15,17 @@
  */
 package io.gravitee.gateway.jupiter.policy.adapter.context;
 
-import static io.gravitee.gateway.jupiter.api.context.ExecutionContext.ATTR_ADAPTED_CONTEXT;
-import static io.gravitee.gateway.jupiter.api.context.ExecutionContext.ATTR_INTERNAL_EXECUTION_FAILURE;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_ADAPTED_CONTEXT;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_EXECUTION_FAILURE;
 
 import io.gravitee.el.TemplateEngine;
+import io.gravitee.gateway.api.Request;
+import io.gravitee.gateway.api.Response;
+import io.gravitee.gateway.api.context.MutableExecutionContext;
 import io.gravitee.gateway.api.processor.ProcessorFailure;
 import io.gravitee.gateway.jupiter.api.ExecutionFailure;
 import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
 import io.gravitee.tracing.api.Tracer;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -32,13 +35,14 @@ import java.util.Map;
  * @author Jeoffrey HAEYAERT (jeoffrey.haeyaert at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class ExecutionContextAdapter implements io.gravitee.gateway.api.ExecutionContext {
+public class ExecutionContextAdapter implements io.gravitee.gateway.api.ExecutionContext, MutableExecutionContext {
 
-    private final RequestExecutionContext ctx;
-    private RequestAdapter adaptedRequest;
-    private ResponseAdapter adaptedResponse;
+    private final HttpExecutionContext ctx;
+    private Request adaptedRequest;
+    private Response adaptedResponse;
+    private TemplateEngineAdapter adaptedTemplateEngine;
 
-    private ExecutionContextAdapter(RequestExecutionContext ctx) {
+    private ExecutionContextAdapter(HttpExecutionContext ctx) {
         this.ctx = ctx;
     }
 
@@ -49,23 +53,23 @@ public class ExecutionContextAdapter implements io.gravitee.gateway.api.Executio
      * @param ctx the context to adapt for v3 compatibility mode.
      * @return the v3 compatible {@link io.gravitee.gateway.api.ExecutionContext}.
      */
-    public static ExecutionContextAdapter create(RequestExecutionContext ctx) {
-        ExecutionContextAdapter adaptedCtx = ctx.getInternalAttribute(ATTR_ADAPTED_CONTEXT);
+    public static ExecutionContextAdapter create(HttpExecutionContext ctx) {
+        ExecutionContextAdapter adaptedCtx = ctx.getInternalAttribute(ATTR_INTERNAL_ADAPTED_CONTEXT);
 
         if (adaptedCtx == null) {
             adaptedCtx = new ExecutionContextAdapter(ctx);
-            ctx.setInternalAttribute(ATTR_ADAPTED_CONTEXT, adaptedCtx);
+            ctx.setInternalAttribute(ATTR_INTERNAL_ADAPTED_CONTEXT, adaptedCtx);
         }
 
         return adaptedCtx;
     }
 
-    public RequestExecutionContext getDelegate() {
+    public HttpExecutionContext getDelegate() {
         return ctx;
     }
 
     @Override
-    public RequestAdapter request() {
+    public Request request() {
         if (adaptedRequest == null) {
             adaptedRequest = new RequestAdapter(ctx.request());
         }
@@ -73,7 +77,7 @@ public class ExecutionContextAdapter implements io.gravitee.gateway.api.Executio
     }
 
     @Override
-    public ResponseAdapter response() {
+    public Response response() {
         if (adaptedResponse == null) {
             adaptedResponse = new ResponseAdapter(ctx.response());
         }
@@ -126,11 +130,35 @@ public class ExecutionContextAdapter implements io.gravitee.gateway.api.Executio
 
     @Override
     public TemplateEngine getTemplateEngine() {
-        return ctx.getTemplateEngine();
+        if (adaptedTemplateEngine == null) {
+            adaptedTemplateEngine = new TemplateEngineAdapter(ctx.getTemplateEngine());
+        }
+        return adaptedTemplateEngine;
     }
 
     @Override
     public Tracer getTracer() {
         return ctx.getComponent(Tracer.class);
+    }
+
+    /**
+     * Restore method can be called to restore the template engine context and avoid clashes with jupiter.
+     */
+    public void restore() {
+        if (adaptedTemplateEngine != null) {
+            adaptedTemplateEngine.restore();
+        }
+    }
+
+    @Override
+    public MutableExecutionContext request(Request request) {
+        adaptedRequest = request;
+        return this;
+    }
+
+    @Override
+    public MutableExecutionContext response(Response response) {
+        adaptedResponse = response;
+        return this;
     }
 }

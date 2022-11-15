@@ -19,7 +19,7 @@ version: '3.8'
 services:
   management_api:
     image: ${APIM_REGISTRY:-graviteeio}/apim-management-api:${APIM_TAG:-3}
-    container_name: gio_apim_management_api
+    container_name: gravitee-apim-e2e-management_api
     restart: always
     links:
       - database
@@ -33,14 +33,19 @@ services:
       - "8083:8083"
     volumes:
       - ./.logs/apim-management-api:/opt/graviteeio-management-api/logs
+      - ./jacoco:/opt/jacoco
     environment:
       - gravitee_analytics_elasticsearch_endpoints_0=http://elasticsearch:9200
       - gravitee_newsletter_enabled=false
       - gravitee_security_providers[0].users[0].email=user@gravitee.io
       - gravitee_security_providers[0].users[1].email=admin@gravitee.io
+      - gravitee_api_jupiterMode_enabled=${JUPITER_MODE_ENABLED:-false}
+      - gravitee_api_jupiterMode_default=always
+      - gravitee_services_sync_cron=*/2 * * * * *
+      - "JAVA_OPTS=${JAVA_OPTS} ${JACOCO_OPTS}"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://admin:adminadmin@localhost:18083/_node" ]
-      interval: 2s
+      test: [ "CMD", "curl", "-f", "http://admin:admin@localhost:8083/management/organizations/DEFAULT/user" ]
+      interval: 10s
       timeout: 10s
       retries: 30
     networks:
@@ -49,22 +54,24 @@ services:
 
   gateway:
     image: ${APIM_REGISTRY:-graviteeio}/apim-gateway:${APIM_TAG:-3}
-    container_name: gio_apim_gateway
+    container_name: gravitee-apim-e2e-gateway
     restart: always
     links:
       - database
       - elasticsearch
     depends_on:
-      database:
-        condition: service_healthy
-      elasticsearch:
+      management_api:
         condition: service_healthy
     ports:
       - "8082:8082"
     volumes:
       - ./.logs/apim-gateway:/opt/graviteeio-gateway/logs
+      - ./jacoco:/opt/jacoco
     environment:
       - gravitee_reporters_elasticsearch_endpoints_0=http://elasticsearch:9200
+      - gravitee_api_jupiterMode_enabled=${JUPITER_MODE_ENABLED:-false}
+      - gravitee_services_sync_delay=2000
+      - "JAVA_OPTS=${JAVA_OPTS} ${JACOCO_OPTS}"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://admin:adminadmin@localhost:18082/_node" ]
       interval: 2s

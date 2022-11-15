@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
-import { APIsApi } from '@management-apis/APIsApi';
-import { forManagementAsApiUser } from '@client-conf/*';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { ApiEntity } from '@management-models/ApiEntity';
-import { PlansFaker } from '@management-fakers/PlansFaker';
-import { PlanEntity } from '@management-models/PlanEntity';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { forManagementAsApiUser } from '@gravitee/utils/configuration';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { PlansFaker } from '@gravitee/fixtures/management/PlansFaker';
+import { PlanEntity } from '@gravitee/management-webclient-sdk/src/lib/models/PlanEntity';
 import { noContent, succeed } from '@lib/jest-utils';
-import { LifecycleAction } from '@management-models/LifecycleAction';
-import { fetchGatewaySuccess } from '@lib/gateway';
-import { PathOperatorOperatorEnum } from '@management-models/PathOperator';
-import { PlanStatus } from '@management-models/PlanStatus';
-import { UpdatePlanEntityFromJSON } from '@management-models/UpdatePlanEntity';
+import { LifecycleAction } from '@gravitee/management-webclient-sdk/src/lib/models/LifecycleAction';
+import { fetchGatewaySuccess } from '@gravitee/utils/gateway';
+import { PathOperatorOperatorEnum } from '@gravitee/management-webclient-sdk/src/lib/models/PathOperator';
+import { PlanStatus } from '@gravitee/management-webclient-sdk/src/lib/models/PlanStatus';
+import { UpdatePlanEntityFromJSON } from '@gravitee/management-webclient-sdk/src/lib/models/UpdatePlanEntity';
 
 const apiManagementApiAsApiUser = new APIsApi(forManagementAsApiUser());
 const orgId = 'DEFAULT';
@@ -48,7 +48,7 @@ describe('Redeploy Api', () => {
               name: '',
               path_operator: {
                 path: '/',
-                operator: PathOperatorOperatorEnum.STARTSWITH,
+                operator: PathOperatorOperatorEnum.STARTS_WITH,
               },
               condition: '',
               consumers: [],
@@ -91,7 +91,7 @@ describe('Redeploy Api', () => {
       // Fist fetch Gateway to be sure api is deployed
       await fetchGatewaySuccess({ contextPath: createdApi.context_path + '?activeLatency=false' });
 
-      // Update a Plan to desynchronize Api definition
+      // Update a Plan to de-synchronize Api definition
       await apiManagementApiAsApiUser.updateApiPlan({
         envId,
         orgId,
@@ -118,8 +118,7 @@ describe('Redeploy Api', () => {
       await fetchUniqueGatewayCall
         .then((res) => res.json())
         .then((json) => {
-          expect(json.date).toBe('11/05/2022 13:19:44.009');
-          expect(json.timestamp).toBe(1652275184009);
+          expect(json.message).toBe('Hello, World!');
         });
     });
   });

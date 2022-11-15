@@ -15,12 +15,12 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.flow.resolver;
 
+import io.gravitee.definition.model.Api;
 import io.gravitee.definition.model.flow.Flow;
-import io.gravitee.gateway.handlers.api.definition.Api;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.core.condition.ConditionEvaluator;
+import io.gravitee.gateway.jupiter.api.context.GenericExecutionContext;
+import io.gravitee.gateway.jupiter.core.condition.ConditionFilter;
 import io.gravitee.gateway.jupiter.flow.AbstractFlowResolver;
-import io.reactivex.Flowable;
+import io.reactivex.rxjava3.core.Flowable;
 import java.util.stream.Collectors;
 
 /**
@@ -33,14 +33,14 @@ class ApiFlowResolver extends AbstractFlowResolver {
 
     private final Flowable<Flow> flows;
 
-    public ApiFlowResolver(Api api, ConditionEvaluator<Flow> evaluator) {
-        super(evaluator);
+    public ApiFlowResolver(Api api, ConditionFilter<Flow> filter) {
+        super(filter);
         // Api flows can be determined once and then reused.
         this.flows = provideFlows(api);
     }
 
     @Override
-    public Flowable<Flow> provideFlows(RequestExecutionContext ctx) {
+    public Flowable<Flow> provideFlows(GenericExecutionContext ctx) {
         return this.flows;
     }
 

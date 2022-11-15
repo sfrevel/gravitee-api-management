@@ -18,63 +18,113 @@ package io.gravitee.gateway.jupiter.reactor.handler.context;
 import io.gravitee.el.TemplateContext;
 import io.gravitee.el.TemplateEngine;
 import io.gravitee.el.TemplateVariableProvider;
+import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.core.component.ComponentProvider;
 import io.gravitee.gateway.jupiter.api.ExecutionFailure;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.InternalContextAttributes;
+import io.gravitee.gateway.jupiter.api.context.Request;
+import io.gravitee.gateway.jupiter.api.context.Response;
+import io.gravitee.gateway.jupiter.api.el.EvaluableMessage;
 import io.gravitee.gateway.jupiter.api.el.EvaluableRequest;
 import io.gravitee.gateway.jupiter.api.el.EvaluableResponse;
-import io.gravitee.gateway.jupiter.core.context.MutableRequest;
-import io.gravitee.gateway.jupiter.core.context.MutableRequestExecutionContext;
-import io.gravitee.gateway.jupiter.core.context.MutableResponse;
+import io.gravitee.gateway.jupiter.api.message.Message;
 import io.gravitee.gateway.jupiter.core.context.interruption.InterruptionException;
 import io.gravitee.gateway.jupiter.core.context.interruption.InterruptionFailureException;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Maybe;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-abstract class AbstractExecutionContext implements MutableRequestExecutionContext {
+abstract class AbstractExecutionContext<RQ extends Request, RS extends Response> implements ExecutionContext {
 
-    private static final String TEMPLATE_ATTRIBUTE_REQUEST = "request";
-    private static final String TEMPLATE_ATTRIBUTE_RESPONSE = "response";
-    private static final String TEMPLATE_ATTRIBUTE_CONTEXT = "context";
-
-    private final Map<String, Object> attributes = new HashMap<>();
+    private final RQ request;
+    private final RS response;
+    private final Map<String, Object> attributes = new ContextAttributeMap();
     private final Map<String, Object> internalAttributes = new HashMap<>();
-    private final MutableRequest request;
-    private final MutableResponse response;
-    private ComponentProvider componentProvider;
-    private Collection<TemplateVariableProvider> templateVariableProviders;
-    private TemplateEngine templateEngine;
+    protected ComponentProvider componentProvider;
+    protected TemplateEngine templateEngine;
+    protected Collection<TemplateVariableProvider> templateVariableProviders;
 
-    protected AbstractExecutionContext(MutableRequest request, MutableResponse response) {
+    private EvaluableRequest evaluableRequest;
+    private EvaluableResponse evaluableResponse;
+    private EvaluableExecutionContext evaluableExecutionContext;
+
+    AbstractExecutionContext(final RQ request, final RS response) {
         this.request = request;
         this.response = response;
     }
 
     @Override
+    public RQ request() {
+        return request;
+    }
+
+    @Override
+    public RS response() {
+        return response;
+    }
+
+    @Override
     public Completable interrupt() {
-        return Completable.error(new InterruptionException());
+        return messagesInterruption();
     }
 
     @Override
     public Completable interruptWith(ExecutionFailure executionFailure) {
         return Completable.defer(
             () -> {
-                internalAttributes.put(ATTR_INTERNAL_EXECUTION_FAILURE, executionFailure);
+                internalAttributes.put(InternalContextAttributes.ATTR_INTERNAL_EXECUTION_FAILURE, executionFailure);
                 return Completable.error(new InterruptionFailureException(executionFailure));
             }
         );
     }
 
     @Override
-    public MutableRequest request() {
-        return request;
+    public Maybe<Buffer> interruptBody() {
+        return interrupt().toMaybe();
     }
 
     @Override
-    public MutableResponse response() {
-        return response;
+    public Maybe<Buffer> interruptBodyWith(final ExecutionFailure failure) {
+        return interruptWith(failure).toMaybe();
+    }
+
+    @Override
+    public Flowable<Message> interruptMessages() {
+        return messagesInterruption().toFlowable();
+    }
+
+    @Override
+    public Maybe<Message> interruptMessage() {
+        return messagesInterruption().toMaybe();
+    }
+
+    private Completable messagesInterruption() {
+        return Completable.error(new InterruptionException());
+    }
+
+    @Override
+    public Flowable<Message> interruptMessagesWith(final ExecutionFailure executionFailure) {
+        return messageInterruptionFailure(executionFailure).toFlowable();
+    }
+
+    @Override
+    public Maybe<Message> interruptMessageWith(final ExecutionFailure executionFailure) {
+        return messageInterruptionFailure(executionFailure).toMaybe();
+    }
+
+    private Completable messageInterruptionFailure(final ExecutionFailure executionFailure) {
+        return Completable.defer(
+            () -> {
+                internalAttributes.put(InternalContextAttributes.ATTR_INTERNAL_EXECUTION_FAILURE, executionFailure);
+                return Completable.error(new InterruptionFailureException(executionFailure));
+            }
+        );
     }
 
     @Override
@@ -141,27 +191,55 @@ abstract class AbstractExecutionContext implements MutableRequestExecutionContex
     public TemplateEngine getTemplateEngine() {
         if (templateEngine == null) {
             templateEngine = TemplateEngine.templateEngine();
-
-            TemplateContext templateContext = templateEngine.getTemplateContext();
-            templateContext.setVariable(TEMPLATE_ATTRIBUTE_REQUEST, new EvaluableRequest(request()));
-            templateContext.setVariable(TEMPLATE_ATTRIBUTE_RESPONSE, new EvaluableResponse(response()));
-            templateContext.setVariable(TEMPLATE_ATTRIBUTE_CONTEXT, new EvaluableExecutionContext(this));
-
-            if (templateVariableProviders != null) {
-                templateVariableProviders.forEach(templateVariableProvider -> templateVariableProvider.provide(templateContext));
-            }
+            prepareTemplateEngine(templateEngine);
         }
 
         return templateEngine;
     }
 
-    public MutableRequestExecutionContext componentProvider(final ComponentProvider componentProvider) {
-        this.componentProvider = componentProvider;
-        return this;
+    @Override
+    public TemplateEngine getTemplateEngine(Message message) {
+        final TemplateEngine engine = TemplateEngine.templateEngine();
+        prepareTemplateEngine(engine);
+
+        engine.getTemplateContext().setVariable(TEMPLATE_ATTRIBUTE_MESSAGE, new EvaluableMessage(message));
+
+        return engine;
     }
 
-    public MutableRequestExecutionContext templateVariableProviders(final Collection<TemplateVariableProvider> templateVariableProviders) {
-        this.templateVariableProviders = templateVariableProviders;
-        return this;
+    private void prepareTemplateEngine(final TemplateEngine templateEngine) {
+        final TemplateContext templateContext = templateEngine.getTemplateContext();
+        final EvaluableRequest evaluableReq = getEvaluableRequest();
+        final EvaluableResponse evaluableResp = getEvaluableResponse();
+        final EvaluableExecutionContext evaluableCtx = getEvaluableExecutionContext();
+
+        templateContext.setVariable(HttpExecutionContext.TEMPLATE_ATTRIBUTE_REQUEST, evaluableReq);
+        templateContext.setVariable(HttpExecutionContext.TEMPLATE_ATTRIBUTE_RESPONSE, evaluableResp);
+        templateContext.setVariable(HttpExecutionContext.TEMPLATE_ATTRIBUTE_CONTEXT, evaluableCtx);
+
+        if (templateVariableProviders != null) {
+            templateVariableProviders.forEach(templateVariableProvider -> templateVariableProvider.provide((ExecutionContext) this));
+        }
+    }
+
+    private EvaluableRequest getEvaluableRequest() {
+        if (evaluableRequest == null) {
+            this.evaluableRequest = new EvaluableRequest(request());
+        }
+        return evaluableRequest;
+    }
+
+    private EvaluableResponse getEvaluableResponse() {
+        if (evaluableResponse == null) {
+            this.evaluableResponse = new EvaluableResponse(response());
+        }
+        return evaluableResponse;
+    }
+
+    private EvaluableExecutionContext getEvaluableExecutionContext() {
+        if (evaluableExecutionContext == null) {
+            this.evaluableExecutionContext = new EvaluableExecutionContext(this);
+        }
+        return evaluableExecutionContext;
     }
 }

@@ -41,12 +41,15 @@ import io.gravitee.rest.api.service.exceptions.ApiNotFoundException;
 import io.gravitee.rest.api.service.exceptions.TechnicalManagementException;
 import io.gravitee.rest.api.service.jackson.filter.ApiPermissionFilter;
 import io.gravitee.rest.api.service.notification.ApiHook;
+import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
+import io.gravitee.rest.api.service.v4.mapper.CategoryMapper;
 import java.util.*;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -100,8 +103,14 @@ public class ApiService_StartTest {
     @Mock
     private FlowService flowService;
 
+    @Mock
+    private PrimaryOwnerService primaryOwnerService;
+
     @Spy
-    private ApiConverter apiConverter;
+    private CategoryMapper categoryMapper = new CategoryMapper(mock(CategoryService.class));
+
+    @InjectMocks
+    private ApiConverter apiConverter = Mockito.spy(new ApiConverter());
 
     @Before
     public void setUp() {
@@ -109,18 +118,9 @@ public class ApiService_StartTest {
         objectMapper.setFilterProvider(
             new SimpleFilterProvider(Collections.singletonMap("apiMembershipTypeFilter", apiMembershipTypeFilter))
         );
-        UserEntity u = mock(UserEntity.class);
-        when(u.getId()).thenReturn("uid");
+        UserEntity u = new UserEntity();
         when(userService.findById(eq(GraviteeContext.getExecutionContext()), any())).thenReturn(u);
-        MembershipEntity po = mock(MembershipEntity.class);
-        when(
-            membershipService.getPrimaryOwner(
-                eq(GraviteeContext.getCurrentOrganization()),
-                eq(io.gravitee.rest.api.model.MembershipReferenceType.API),
-                anyString()
-            )
-        )
-            .thenReturn(po);
+        when(primaryOwnerService.getPrimaryOwner(any(), any())).thenReturn(new PrimaryOwnerEntity(new UserEntity()));
         when(api.getId()).thenReturn(API_ID);
     }
 
@@ -148,6 +148,26 @@ public class ApiService_StartTest {
                 argThat(argApi -> argApi.getId().equals(API_ID)),
                 eq(event.getProperties())
             );
+        verify(notifierService, times(1)).trigger(eq(GraviteeContext.getExecutionContext()), eq(ApiHook.API_STARTED), eq(API_ID), any());
+    }
+
+    @Test
+    public void shouldStartWithKubernetesOrigin() throws Exception {
+        objectMapper.addMixIn(Api.class, ApiMixin.class);
+        when(api.getOrigin()).thenReturn(Api.ORIGIN_KUBERNETES);
+        when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
+        when(apiRepository.update(api)).thenReturn(api);
+        final EventEntity event = mockEvent(PUBLISH_API);
+        final EventQuery query = new EventQuery();
+        query.setApi(API_ID);
+        query.setTypes(singleton(PUBLISH_API));
+
+        apiService.start(GraviteeContext.getExecutionContext(), API_ID, USER_NAME);
+
+        verify(api).setUpdatedAt(any());
+        verify(api).setLifecycleState(LifecycleState.STARTED);
+        verify(apiRepository).update(api);
+        verify(eventService, times(0)).createApiEvent(any(), any(), any(), any(), any());
         verify(notifierService, times(1)).trigger(eq(GraviteeContext.getExecutionContext()), eq(ApiHook.API_STARTED), eq(API_ID), any());
     }
 

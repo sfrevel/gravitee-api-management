@@ -15,8 +15,10 @@
  */
 package io.gravitee.rest.api.service.plaftform.plugins;
 
+import io.gravitee.plugin.core.api.ConfigurablePluginManager;
 import io.gravitee.plugin.discovery.ServiceDiscoveryPlugin;
 import io.gravitee.rest.api.model.platform.plugin.PlatformPluginEntity;
+import io.gravitee.rest.api.service.JsonSchemaService;
 import io.gravitee.rest.api.service.ServiceDiscoveryService;
 import io.gravitee.rest.api.service.impl.AbstractPluginService;
 import java.util.Set;
@@ -29,8 +31,15 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ServiceDiscoveryServiceImpl
-    extends AbstractPluginService<ServiceDiscoveryPlugin, PlatformPluginEntity>
+    extends AbstractPluginService<ServiceDiscoveryPlugin<?>, PlatformPluginEntity>
     implements ServiceDiscoveryService {
+
+    public ServiceDiscoveryServiceImpl(
+        JsonSchemaService jsonSchemaService,
+        ConfigurablePluginManager<ServiceDiscoveryPlugin<?>> pluginManager
+    ) {
+        super(jsonSchemaService, pluginManager);
+    }
 
     @Override
     public Set<PlatformPluginEntity> findAll() {
@@ -39,7 +48,7 @@ public class ServiceDiscoveryServiceImpl
 
     @Override
     public PlatformPluginEntity findById(String resource) {
-        ServiceDiscoveryPlugin sdDefinition = super.get(resource);
+        ServiceDiscoveryPlugin<?> sdDefinition = super.get(resource);
         return convert(sdDefinition);
     }
 }

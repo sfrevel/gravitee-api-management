@@ -17,8 +17,6 @@ import { StateParams, StateService } from '@uirouter/core';
 import { StateProvider } from '@uirouter/angularjs';
 import * as _ from 'lodash';
 
-import { ApisController } from './apis.controller';
-
 import { ApiService } from '../../services/api.service';
 import CategoryService from '../../services/category.service';
 import EnvironmentService from '../../services/environment.service';
@@ -152,23 +150,11 @@ function apisRouterConfig($stateProvider: StateProvider) {
         },
       },
     })
-    .state('management.apis.list', {
-      url: '/?q',
-      template: require('./apis.html'),
-      controller: ApisController,
-      controllerAs: '$ctrl',
-      resolve: {
-        resolvedApis: function ($stateParams, ApiService: ApiService) {
-          return ApiService.searchApis($stateParams.q || '', 1);
-        },
-      },
+    .state('management.apis.ng-list', {
+      url: '/?q&page&size&order',
+      component: 'ngApiList',
       data: {
-        menu: {
-          label: 'APIs',
-          icon: 'dashboard',
-          firstLevel: true,
-          order: 10,
-        },
+        useAngularMaterial: true,
         docs: {
           page: 'management-apis',
         },
@@ -177,7 +163,18 @@ function apisRouterConfig($stateProvider: StateProvider) {
         },
       },
       params: {
+        page: {
+          value: '1',
+          dynamic: true,
+        },
         q: {
+          dynamic: true,
+        },
+        size: {
+          value: '10',
+          dynamic: true,
+        },
+        order: {
           dynamic: true,
         },
       },

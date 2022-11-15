@@ -15,4 +15,7 @@
     limitations under the License.
 
 -->
-<div class="gv-sub-content" ui-view flex></div>
+<div flex layout="row">
+  <application-navigation [application-name]="$ctrl.application.name"></application-navigation>
+  <div class="gv-sub-content" flex layout="column" ui-view></div>
+</div>

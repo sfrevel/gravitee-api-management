@@ -15,7 +15,7 @@
  */
 package io.gravitee.rest.api.service.cockpit.command.handler;
 
-import static io.gravitee.rest.api.service.common.SecurityContextHelper.*;
+import static io.gravitee.rest.api.service.common.SecurityContextHelper.authenticateAs;
 
 import io.gravitee.cockpit.api.command.Command;
 import io.gravitee.cockpit.api.command.CommandHandler;
@@ -25,16 +25,15 @@ import io.gravitee.cockpit.api.command.designer.DeployModelPayload;
 import io.gravitee.cockpit.api.command.designer.DeployModelReply;
 import io.gravitee.rest.api.model.EnvironmentEntity;
 import io.gravitee.rest.api.model.UserEntity;
-import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.model.api.ApiEntityResult;
-import io.gravitee.rest.api.service.ApiService;
 import io.gravitee.rest.api.service.EnvironmentService;
 import io.gravitee.rest.api.service.UserService;
 import io.gravitee.rest.api.service.cockpit.model.DeploymentMode;
 import io.gravitee.rest.api.service.cockpit.services.ApiServiceCockpit;
 import io.gravitee.rest.api.service.cockpit.services.CockpitApiPermissionChecker;
 import io.gravitee.rest.api.service.common.GraviteeContext;
-import io.reactivex.Single;
+import io.gravitee.rest.api.service.v4.ApiSearchService;
+import io.reactivex.rxjava3.core.Single;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -50,20 +49,20 @@ public class DeployModelCommandHandler implements CommandHandler<DeployModelComm
 
     private final Logger logger = LoggerFactory.getLogger(DeployModelCommandHandler.class);
 
-    private final ApiService apiService;
+    private final ApiSearchService apiSearchService;
     private final ApiServiceCockpit cockpitApiService;
     private final CockpitApiPermissionChecker permissionChecker;
     private final UserService userService;
     private final EnvironmentService environmentService;
 
     public DeployModelCommandHandler(
-        ApiService apiService,
+        ApiSearchService apiSearchService,
         ApiServiceCockpit cockpitApiService,
         CockpitApiPermissionChecker permissionChecker,
         UserService userService,
         EnvironmentService environmentService
     ) {
-        this.apiService = apiService;
+        this.apiSearchService = apiSearchService;
         this.cockpitApiService = cockpitApiService;
         this.permissionChecker = permissionChecker;
         this.userService = userService;
@@ -96,14 +95,14 @@ public class DeployModelCommandHandler implements CommandHandler<DeployModelComm
 
             ApiEntityResult result;
 
-            final Optional<ApiEntity> optApi = apiService.findByEnvironmentIdAndCrossId(environment.getId(), apiCrossId);
-            if (optApi.isPresent()) {
-                final ApiEntity api = optApi.get();
+            final Optional<String> optApiId = apiSearchService.findIdByEnvironmentIdAndCrossId(environment.getId(), apiCrossId);
+            if (optApiId.isPresent()) {
+                final String apiId = optApiId.get();
                 var message = permissionChecker.checkUpdatePermission(
                     GraviteeContext.getExecutionContext(),
                     user.getId(),
                     environment.getId(),
-                    api.getId(),
+                    apiId,
                     mode
                 );
 
@@ -116,7 +115,7 @@ public class DeployModelCommandHandler implements CommandHandler<DeployModelComm
                 result =
                     cockpitApiService.updateApi(
                         GraviteeContext.getExecutionContext(),
-                        api.getId(),
+                        apiId,
                         user.getId(),
                         swaggerDefinition,
                         environment.getId(),

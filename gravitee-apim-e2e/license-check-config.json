@@ -36,7 +36,11 @@
     "ui-test/fixtures/keys/**",
     "lib/management-webclient-sdk",
     "lib/portal-webclient-sdk",
-    "api-test/resources/**"
+    "api-test/resources/**",
+    "jacoco/lib/**",
+    "jacoco/jacoco.exec",
+    "jacoco/reports/**",
+    "jacoco/README.md"
   ],
   "license": "LICENSE_TEMPLATE.txt",
   "licenseFormats": {

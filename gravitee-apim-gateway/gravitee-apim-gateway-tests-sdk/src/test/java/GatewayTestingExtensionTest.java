@@ -15,6 +15,8 @@
  */
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.testkit.engine.EngineTestKit;
@@ -24,6 +26,7 @@ import testcases.Http2HeadersTestCase;
 import testcases.InvalidApiClassLevelTestCase;
 import testcases.InvalidGatewayConfigFolderTestCase;
 import testcases.NotExtendingAbstractClassTestCase;
+import testcases.OrganizationDeploymentTestCase;
 import testcases.RegisterTwiceSameApiClassLevelTestCase;
 import testcases.RegisterTwiceSameApiMethodLevelTestCase;
 import testcases.SuccessTestCase;
@@ -33,6 +36,20 @@ import testcases.SuccessTestCase;
  * @author GraviteeSource Team
  */
 class GatewayTestingExtensionTest {
+
+    /**
+     * Setting this property allow to run test cases only in the context of the extension testing.
+     * *TestCase.java classes are not aimed to be run when running all tests in your IDE.
+     */
+    @BeforeEach
+    void setUp() {
+        System.setProperty("io.gravitee.sdk.testcase.enabled", "true");
+    }
+
+    @AfterEach
+    void tearDown() {
+        System.clearProperty("io.gravitee.sdk.testcase.enabled");
+    }
 
     @Test
     @DisplayName("Should success tests")
@@ -92,7 +109,7 @@ class GatewayTestingExtensionTest {
             .testEvents()
             .assertStatistics(
                 stats -> {
-                    stats.started(3).succeeded(2).failed(1);
+                    stats.succeeded(2).failed(1);
                 }
             );
     }
@@ -168,6 +185,21 @@ class GatewayTestingExtensionTest {
             .assertStatistics(
                 stats -> {
                     stats.started(0);
+                }
+            );
+    }
+
+    @Test
+    @DisplayName("Should success tests with valid organization at class level and method level")
+    void shouldSuccessTestsWithValidOrganizationAtClassLevel() {
+        EngineTestKit
+            .engine("junit-jupiter")
+            .selectors(selectClass(OrganizationDeploymentTestCase.class))
+            .execute()
+            .testEvents()
+            .assertStatistics(
+                stats -> {
+                    stats.started(3).succeeded(3).failed(0);
                 }
             );
     }

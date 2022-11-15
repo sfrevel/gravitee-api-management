@@ -33,9 +33,13 @@ import io.gravitee.rest.api.model.permissions.RolePermission;
 import io.gravitee.rest.api.model.permissions.RolePermissionAction;
 import io.gravitee.rest.api.model.subscription.SubscriptionMetadataQuery;
 import io.gravitee.rest.api.model.subscription.SubscriptionQuery;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
+import io.gravitee.rest.api.model.v4.plan.GenericPlanEntity;
+import io.gravitee.rest.api.model.v4.plan.NewPlanEntity;
 import io.gravitee.rest.api.service.*;
 import io.gravitee.rest.api.service.common.ExecutionContext;
 import io.gravitee.rest.api.service.common.GraviteeContext;
+import io.gravitee.rest.api.service.v4.PlanSearchService;
 import io.gravitee.rest.api.validator.CustomApiKey;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -72,7 +76,7 @@ public class ApiSubscriptionsResource extends AbstractResource {
     private ApplicationService applicationService;
 
     @Inject
-    private PlanService planService;
+    private PlanSearchService planSearchService;
 
     @Context
     private ResourceContext resourceContext;
@@ -142,6 +146,7 @@ public class ApiSubscriptionsResource extends AbstractResource {
 
     @POST
     @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
     @Operation(summary = "Subscribe to a plan", description = "User must have the MANAGE_SUBSCRIPTIONS permission to use this service")
     @ApiResponse(
         responseCode = "201",
@@ -154,7 +159,8 @@ public class ApiSubscriptionsResource extends AbstractResource {
     public Response createSubscriptionToApi(
         @Parameter(name = "application", required = true) @NotNull @QueryParam("application") String application,
         @Parameter(name = "plan", required = true) @NotNull @QueryParam("plan") String plan,
-        @Parameter(name = "customApiKey") @CustomApiKey @QueryParam("customApiKey") String customApiKey
+        @Parameter(name = "customApiKey") @CustomApiKey @QueryParam("customApiKey") String customApiKey,
+        @Valid NewSubscriptionConfigurationEntity newSubscriptionConfigurationEntity
     ) {
         final ExecutionContext executionContext = GraviteeContext.getExecutionContext();
         if (
@@ -165,6 +171,12 @@ public class ApiSubscriptionsResource extends AbstractResource {
         }
 
         NewSubscriptionEntity newSubscriptionEntity = new NewSubscriptionEntity(plan, application);
+
+        if (newSubscriptionConfigurationEntity != null) {
+            newSubscriptionEntity.setFilter(newSubscriptionConfigurationEntity.getFilter());
+            newSubscriptionEntity.setConfiguration(newSubscriptionConfigurationEntity.getConfiguration());
+            newSubscriptionEntity.setMetadata(newSubscriptionConfigurationEntity.getMetadata());
+        }
 
         // Create subscription
         SubscriptionEntity subscription = subscriptionService.create(executionContext, newSubscriptionEntity, customApiKey);
@@ -257,7 +269,7 @@ public class ApiSubscriptionsResource extends AbstractResource {
             )
         );
 
-        PlanEntity plan = planService.findById(executionContext, subscriptionEntity.getPlan());
+        GenericPlanEntity plan = planSearchService.findById(executionContext, subscriptionEntity.getPlan());
         subscription.setPlan(new Subscription.Plan(plan.getId(), plan.getName()));
 
         ApplicationEntity application = applicationService.findById(executionContext, subscriptionEntity.getApplication());

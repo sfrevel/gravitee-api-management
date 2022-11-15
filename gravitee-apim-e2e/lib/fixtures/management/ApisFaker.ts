@@ -13,24 +13,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { ApiEntity, ApiEntityFlowModeEnum } from '@management-models/ApiEntity';
-import { PageEntity } from '@management-models/PageEntity';
-import { Visibility } from '@management-models/Visibility';
-import { LoadBalancerTypeEnum } from '@management-models/LoadBalancer';
-import { Proxy } from '@management-models/Proxy';
-import { NewApiEntity } from '@management-models/NewApiEntity';
+import { ApiEntity, ApiEntityFlowModeEnum } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { PageEntity, PageEntityToJSON } from '@gravitee/management-webclient-sdk/src/lib/models/PageEntity';
+import { Visibility, VisibilityToJSON } from '@gravitee/management-webclient-sdk/src/lib/models/Visibility';
+import { LoadBalancerTypeEnum } from '@gravitee/management-webclient-sdk/src/lib/models/LoadBalancer';
+import { Proxy, ProxyToJSON } from '@gravitee/management-webclient-sdk/src/lib/models/Proxy';
+import { NewApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/NewApiEntity';
 import faker from '@faker-js/faker';
-import { NewRatingEntity } from '@management-models/NewRatingEntity';
-import { RatingInput } from '@portal-models/RatingInput';
-import { PrimaryOwnerEntity } from '@management-models/PrimaryOwnerEntity';
-import { PlanEntity } from '@management-models/PlanEntity';
+import { NewRatingEntity } from '@gravitee/management-webclient-sdk/src/lib/models/NewRatingEntity';
+import { RatingInput } from '@gravitee/portal-webclient-sdk/src/lib/models/RatingInput';
+import { PrimaryOwnerEntity, PrimaryOwnerEntityToJSON } from '@gravitee/management-webclient-sdk/src/lib/models/PrimaryOwnerEntity';
+import { ResponseTemplate } from '@gravitee/management-webclient-sdk/src/lib/models/ResponseTemplate';
+import { Flow, FlowToJSON } from '@gravitee/management-webclient-sdk/src/lib/models/Flow';
+import { PlanEntity, PlanEntityToJSON } from '@gravitee/management-webclient-sdk/src/lib/models/PlanEntity';
+import { PropertyToJSON, ResourceToJSON } from '../../management-webclient-sdk/src/lib/models';
 
-export interface ApiImportEntity extends ApiEntity {
+export interface ApiImportEntity {
+  id?: string;
+  crossId?: string;
+  name?: string;
+  version?: string;
+  description?: string;
+  visibility?: Visibility;
+  gravitee?: string;
+  flow_mode?: ApiEntityFlowModeEnum;
+  flows?: Array<Flow>;
+  resources?: Array<any>;
+  properties?: Array<any>;
+  groups?: Array<string>;
+  path_mappings?: Array<string>;
   members?: Array<any>;
   pages?: Array<PageEntity>;
   plans?: Array<PlanEntity>;
   metadata?: any;
   primaryOwner?: PrimaryOwnerEntity;
+  response_templates?: { [key: string]: { [key: string]: ResponseTemplate } };
+  proxy?: Proxy;
 }
 
 export enum ApiMetadataFormat {
@@ -55,7 +73,27 @@ export class ApisFaker {
   }
 
   static apiImport(attributes?: Partial<ApiImportEntity>): ApiImportEntity {
-    return this.api(attributes);
+    const name = faker.commerce.productName();
+    const version = this.version();
+    const description = faker.commerce.productDescription();
+
+    return {
+      name,
+      version,
+      description,
+      visibility: Visibility.PRIVATE,
+      gravitee: '2.0.0',
+      flow_mode: ApiEntityFlowModeEnum.DEFAULT,
+      resources: [],
+      properties: [],
+      groups: [],
+      plans: [],
+      path_mappings: [],
+      proxy: this.proxy(),
+      response_templates: {},
+      flows: [],
+      ...attributes,
+    };
   }
 
   static api(attributes?: Partial<ApiEntity>): ApiEntity {
@@ -91,7 +129,7 @@ export class ApisFaker {
       name,
       description,
       version,
-      endpoint: `${process.env.WIREMOCK_BASE_PATH}/whattimeisit`,
+      endpoint: `${process.env.WIREMOCK_BASE_URL}/hello`,
       ...attributes,
     };
   }
@@ -112,14 +150,14 @@ export class ApisFaker {
             {
               inherit: true,
               name: 'default',
-              target: `${process.env.WIREMOCK_BASE_PATH}/whattimeisit`,
+              target: `${process.env.WIREMOCK_BASE_URL}/hello`,
               weight: 1,
               backup: false,
               type: 'http',
             },
           ],
           load_balancing: {
-            type: LoadBalancerTypeEnum.ROUNDROBIN,
+            type: LoadBalancerTypeEnum.ROUND_ROBIN,
           },
           http: {
             connectTimeout: 5000,
@@ -152,4 +190,35 @@ export class ApisFaker {
       value: faker.datatype.number({ min: 1, max: 5, precision: 1 }),
     };
   }
+}
+
+export function ApiImportEntityToJSON(value?: ApiImportEntity | null): any {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  return {
+    id: value.id,
+    crossId: value.crossId,
+    name: value.name,
+    version: value.version,
+    description: value.description,
+    visibility: VisibilityToJSON(value.visibility),
+    gravitee: value.gravitee,
+    flow_mode: value.flow_mode,
+    flows: value.flows === undefined ? undefined : (value.flows as Array<any>).map(FlowToJSON),
+    resources: value.resources === undefined ? undefined : (value.resources as Array<any>).map(ResourceToJSON),
+    properties: value.properties === undefined ? undefined : (value.properties as Array<any>).map(PropertyToJSON),
+    groups: value.groups,
+    path_mappings: value.path_mappings,
+    members: value.members,
+    pages: value.pages === undefined ? undefined : (value.pages as Array<any>).map(PageEntityToJSON),
+    plans: value.plans === undefined ? undefined : (value.plans as Array<any>).map(PlanEntityToJSON),
+    metadata: value.metadata,
+    primaryOwner: PrimaryOwnerEntityToJSON(value.primaryOwner),
+    response_templates: value.response_templates,
+    proxy: ProxyToJSON(value.proxy),
+  };
 }

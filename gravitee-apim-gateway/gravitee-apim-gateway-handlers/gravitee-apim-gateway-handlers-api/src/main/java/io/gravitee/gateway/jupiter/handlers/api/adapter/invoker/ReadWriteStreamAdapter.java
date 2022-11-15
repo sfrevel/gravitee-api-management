@@ -20,10 +20,10 @@ import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.stream.ReadStream;
 import io.gravitee.gateway.api.stream.SimpleReadWriteStream;
-import io.gravitee.gateway.jupiter.api.context.Request;
+import io.gravitee.gateway.jupiter.api.context.HttpRequest;
 import io.gravitee.gateway.jupiter.policy.adapter.context.ExecutionContextAdapter;
 import io.gravitee.gateway.jupiter.policy.adapter.context.RequestAdapter;
-import io.reactivex.CompletableEmitter;
+import io.reactivex.rxjava3.core.CompletableEmitter;
 
 /**
  * This {@link ReadWriteStreamAdapter} is a {@link SimpleReadWriteStream} implementation that can be used when calling {@link io.gravitee.gateway.api.Invoker#invoke(ExecutionContext, ReadStream, Handler)}.
@@ -42,18 +42,25 @@ class ReadWriteStreamAdapter extends SimpleReadWriteStream<Buffer> {
      * @param nextEmitter the reactive emitter that can be used to emit error in case of trouble.
      */
     public ReadWriteStreamAdapter(ExecutionContextAdapter ctx, CompletableEmitter nextEmitter) {
-        final RequestAdapter requestAdapter = ctx.request();
-        final Request delegateRequest = ctx.getDelegate().request();
+        final RequestAdapter requestAdapter = (RequestAdapter) ctx.request();
+        final HttpRequest delegateRequest = ctx.getDelegate().request();
 
         requestAdapter.onResume(
-            () ->
+            () -> {
+                ctx.request().bodyHandler(this::write);
+                ctx.request().endHandler(avoid -> this.end());
+
+                final Handler<Buffer> bodyHandler = requestAdapter.getBodyHandler();
+                final Handler<Void> endHandler = requestAdapter.getEndHandler();
+
                 delegateRequest
                     .chunks()
-                    .doOnNext(this::write)
-                    .doOnComplete(this::end)
+                    .doOnNext(bodyHandler::handle)
+                    .doOnComplete(() -> endHandler.handle(null))
                     .doOnError(nextEmitter::tryOnError)
-                    .onErrorResumeNext(e -> {})
-                    .subscribe()
+                    .onErrorResumeWith(e -> {})
+                    .subscribe();
+            }
         );
     }
 }

@@ -16,9 +16,7 @@
 package io.gravitee.gateway.reactor.impl;
 
 import io.gravitee.gateway.reactor.Reactable;
-import io.gravitee.gateway.reactor.handler.Entrypoint;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -27,7 +25,7 @@ import java.util.Set;
  */
 public class ReactableWrapper<T> implements Reactable {
 
-    private T content;
+    private final T content;
 
     public ReactableWrapper(T content) {
         this.content = content;
@@ -45,10 +43,5 @@ public class ReactableWrapper<T> implements Reactable {
     @Override
     public <D> Set<D> dependencies(Class<D> type) {
         return Collections.emptySet();
-    }
-
-    @Override
-    public List<Entrypoint> entrypoints() {
-        return Collections.emptyList();
     }
 }

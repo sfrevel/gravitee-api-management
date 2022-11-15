@@ -1,0 +1,48 @@
+@use 'sass:map';
+@use '@angular/material' as mat;
+@use '@gravitee/ui-particles-angular' as gio;
+@use 'src/scss/gio-layout' as gio-layout;
+
+.gio-instance-details-environment {
+  @include gio-layout.gio-responsive-margin-container;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  overflow-y: auto;
+  height: 80vh;
+
+  &__cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex-grow: 1;
+
+    &__card {
+      &__title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      & table {
+        width: 100%;
+
+        & td.mat-cell {
+          padding: 0 8px;
+          overflow-wrap: anywhere;
+        }
+      }
+    }
+  }
+
+  &__started {
+    color: #429f46 !important;
+    text-transform: capitalize;
+  }
+
+  &__stopped {
+    color: red !important;
+    text-transform: capitalize;
+  }
+}

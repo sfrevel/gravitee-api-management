@@ -47,18 +47,32 @@ import io.gravitee.rest.api.model.pagedresult.Metadata;
 import io.gravitee.rest.api.model.permissions.RoleScope;
 import io.gravitee.rest.api.model.permissions.SystemRole;
 import io.gravitee.rest.api.model.providers.User;
-import io.gravitee.rest.api.service.*;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
+import io.gravitee.rest.api.service.ApplicationAlertService;
+import io.gravitee.rest.api.service.ApplicationService;
+import io.gravitee.rest.api.service.AuditService;
+import io.gravitee.rest.api.service.EmailNotification;
+import io.gravitee.rest.api.service.EmailService;
+import io.gravitee.rest.api.service.GroupService;
+import io.gravitee.rest.api.service.IdentityService;
+import io.gravitee.rest.api.service.MembershipService;
+import io.gravitee.rest.api.service.RoleService;
+import io.gravitee.rest.api.service.UserService;
 import io.gravitee.rest.api.service.builder.EmailNotificationBuilder;
 import io.gravitee.rest.api.service.common.ExecutionContext;
 import io.gravitee.rest.api.service.common.UuidString;
 import io.gravitee.rest.api.service.exceptions.*;
 import io.gravitee.rest.api.service.notification.NotificationParamsBuilder;
+import io.gravitee.rest.api.service.v4.ApiGroupService;
+import io.gravitee.rest.api.service.v4.ApiSearchService;
+import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -71,6 +85,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
     private static final Logger LOGGER = LoggerFactory.getLogger(MembershipServiceImpl.class);
 
     private static final String DEFAULT_SOURCE = "system";
+    private final Cache<String, Set<RoleEntity>> roles = CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.SECONDS).build();
 
     @Autowired
     private UserService userService;
@@ -81,6 +96,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
     @Autowired
     private IdentityService identityService;
 
+    @Lazy
     @Autowired
     private MembershipRepository membershipRepository;
 
@@ -94,7 +110,10 @@ public class MembershipServiceImpl extends AbstractService implements Membership
     private ApplicationAlertService applicationAlertService;
 
     @Autowired
-    private ApiService apiService;
+    private ApiSearchService apiSearchService;
+
+    @Autowired
+    private ApiGroupService apiGroupService;
 
     @Autowired
     private GroupService groupService;
@@ -102,19 +121,19 @@ public class MembershipServiceImpl extends AbstractService implements Membership
     @Autowired
     private AuditService auditService;
 
+    @Lazy
     @Autowired
     private ApiRepository apiRepository;
 
+    @Lazy
     @Autowired
     private ApplicationRepository applicationRepository;
 
     @Autowired
-    private NotifierService notifierService;
-
-    @Autowired
     private EventManager eventManager;
 
-    private final Cache<String, Set<RoleEntity>> roles = CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.SECONDS).build();
+    @Autowired
+    private PrimaryOwnerService primaryOwnerService;
 
     @Override
     public MemberEntity addRoleToMemberOnReference(
@@ -245,7 +264,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
                             final GroupEntity group = groupService.findById(executionContext, reference.getId());
                             shouldNotify = !group.isDisableMembershipNotifications();
                         } else if (MembershipReferenceType.API.equals(reference.getType())) {
-                            final ApiEntity api = apiService.findById(executionContext, reference.getId());
+                            final GenericApiEntity api = apiSearchService.findGenericById(executionContext, reference.getId());
                             shouldNotify = !api.isDisableMembershipNotifications();
                         } else if (MembershipReferenceType.APPLICATION.equals(reference.getType())) {
                             final ApplicationEntity application = applicationService.findById(executionContext, reference.getId());
@@ -357,9 +376,9 @@ public class MembershipServiceImpl extends AbstractService implements Membership
                 params = paramsBuilder.application(applicationEntity).user(user).build();
                 break;
             case API:
-                ApiEntity apiEntity = apiService.findById(executionContext, referenceId);
+                GenericApiEntity indexableApi = apiSearchService.findGenericById(executionContext, referenceId);
                 template = EmailNotificationBuilder.EmailTemplate.TEMPLATES_FOR_ACTION_API_MEMBER_SUBSCRIPTION;
-                params = paramsBuilder.api(apiEntity).user(user).build();
+                params = paramsBuilder.api(indexableApi).user(user).build();
                 break;
             case GROUP:
                 groupEntity = groupService.findById(executionContext, referenceId);
@@ -1306,7 +1325,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
             Set<String> entityGroups = new HashSet<>();
             switch (referenceType) {
                 case API:
-                    entityGroups = apiService.findById(executionContext, referenceId).getGroups();
+                    entityGroups = apiSearchService.findGenericById(executionContext, referenceId).getGroups();
                     break;
                 case APPLICATION:
                     entityGroups = applicationService.findById(executionContext, referenceId).getGroups();
@@ -1385,7 +1404,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
     }
 
     private RoleEntity mapApiPrimaryOwnerRoleToGroupRole(ExecutionContext executionContext, String apiId, String groupId, RoleEntity role) {
-        PrimaryOwnerEntity apiPrimaryOwner = apiService.getPrimaryOwner(executionContext, apiId);
+        PrimaryOwnerEntity apiPrimaryOwner = primaryOwnerService.getPrimaryOwner(executionContext, apiId);
         if (apiPrimaryOwner.getId().equals(groupId)) {
             return role;
         }
@@ -1445,7 +1464,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
     }
 
     @Override
-    public Map<String, char[]> getUserMemberPermissions(ExecutionContext executionContext, ApiEntity api, String userId) {
+    public Map<String, char[]> getUserMemberPermissions(ExecutionContext executionContext, GenericApiEntity api, String userId) {
         return getUserMemberPermissions(executionContext, MembershipReferenceType.API, api.getId(), userId);
     }
 
@@ -1624,7 +1643,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
 
         //If the new PO is a group and the reference is an API, add the group as a member of the API
         if (membershipReferenceType == MembershipReferenceType.API && member.getMemberType() == MembershipMemberType.GROUP) {
-            apiService.addGroup(executionContext, itemId, member.getMemberId());
+            apiGroupService.addGroup(executionContext, itemId, member.getMemberId());
         }
 
         RoleEntity poRoleEntity = roleService.findPrimaryOwnerRoleByOrganization(executionContext.getOrganizationId(), roleScope);
@@ -1666,7 +1685,7 @@ public class MembershipServiceImpl extends AbstractService implements Membership
                 }
             } else if (primaryOwner.getMemberType() == MembershipMemberType.GROUP) {
                 // remove this group from the api's group list
-                apiService.removeGroup(executionContext, itemId, primaryOwner.getId());
+                apiGroupService.removeGroup(executionContext, itemId, primaryOwner.getId());
             }
         }
     }

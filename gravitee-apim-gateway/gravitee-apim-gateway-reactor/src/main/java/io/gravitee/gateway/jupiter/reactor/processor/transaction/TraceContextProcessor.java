@@ -17,10 +17,10 @@ package io.gravitee.gateway.jupiter.reactor.processor.transaction;
 
 import io.gravitee.common.utils.UUID;
 import io.gravitee.gateway.api.Request;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.processor.Processor;
 import io.gravitee.gateway.reactor.processor.transaction.TraceparentHelper;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
 
 /**
  * A {@link Request} processor used to set check the traceparent header as described
@@ -41,7 +41,7 @@ public class TraceContextProcessor implements Processor {
     }
 
     @Override
-    public Completable execute(final RequestExecutionContext ctx) {
+    public Completable execute(final MutableExecutionContext ctx) {
         return Completable.fromRunnable(
             () -> {
                 String traceparent = ctx.request().headers().get(HEADER_TRACE_PARENT);

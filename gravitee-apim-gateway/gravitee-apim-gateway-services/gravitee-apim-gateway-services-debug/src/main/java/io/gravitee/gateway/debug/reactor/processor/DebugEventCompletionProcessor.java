@@ -17,11 +17,11 @@ package io.gravitee.gateway.debug.reactor.processor;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.gravitee.definition.model.Api;
 import io.gravitee.definition.model.HttpResponse;
 import io.gravitee.definition.model.debug.DebugMetrics;
 import io.gravitee.definition.model.debug.PreprocessorStep;
 import io.gravitee.gateway.api.ExecutionContext;
+import io.gravitee.gateway.api.Response;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.core.processor.AbstractProcessor;
@@ -29,6 +29,8 @@ import io.gravitee.gateway.debug.definition.DebugApi;
 import io.gravitee.gateway.debug.reactor.handler.context.DebugExecutionContext;
 import io.gravitee.gateway.debug.reactor.handler.context.steps.DebugStep;
 import io.gravitee.gateway.debug.vertx.VertxHttpServerResponseDebugDecorator;
+import io.gravitee.gateway.handlers.api.definition.Api;
+import io.gravitee.gateway.jupiter.debug.vertx.TimeoutServerResponseDebugDecorator;
 import io.gravitee.gateway.policy.PolicyMetadata;
 import io.gravitee.repository.exceptions.TechnicalException;
 import io.gravitee.repository.management.api.EventRepository;
@@ -90,7 +92,7 @@ public class DebugEventCompletionProcessor extends AbstractProcessor<ExecutionCo
         HttpResponse response = createResponse(
             debugContext.response().headers(),
             debugContext.response().status(),
-            ((VertxHttpServerResponseDebugDecorator) debugContext.response()).getBuffer()
+            getResponseBuffer(debugContext)
         );
         debugApi.setResponse(response);
 
@@ -104,6 +106,14 @@ public class DebugEventCompletionProcessor extends AbstractProcessor<ExecutionCo
         debugApi.setMetrics(createMetrics(debugContext.request().metrics()));
 
         return debugApi;
+    }
+
+    private Buffer getResponseBuffer(DebugExecutionContext debugContext) {
+        Response response = debugContext.response();
+        if (response instanceof TimeoutServerResponseDebugDecorator) {
+            response = ((TimeoutServerResponseDebugDecorator) response).response();
+        }
+        return ((VertxHttpServerResponseDebugDecorator) response).getBuffer();
     }
 
     private DebugMetrics createMetrics(io.gravitee.reporter.api.http.Metrics requestMetrics) {
@@ -165,17 +175,17 @@ public class DebugEventCompletionProcessor extends AbstractProcessor<ExecutionCo
         debugAPI.setDefinitionVersion(content.getDefinitionVersion());
         debugAPI.setResponse(content.getResponse());
         debugAPI.setRequest(content.getRequest());
-        debugAPI.setFlowMode(content.getFlowMode());
-        debugAPI.setFlows(content.getFlows());
-        debugAPI.setPathMappings(content.getPathMappings());
-        debugAPI.setPlans(content.getPlans());
-        debugAPI.setPaths(content.getPaths());
-        debugAPI.setServices(content.getServices());
-        debugAPI.setProxy(content.getProxy());
-        debugAPI.setProperties(content.getProperties());
-        debugAPI.setResources(content.getResources());
-        debugAPI.setServices(content.getServices());
-        debugAPI.setResponseTemplates(content.getResponseTemplates());
+        debugAPI.setFlowMode(content.getDefinition().getFlowMode());
+        debugAPI.setFlows(content.getDefinition().getFlows());
+        debugAPI.setPathMappings(content.getDefinition().getPathMappings());
+        debugAPI.setPlans(content.getDefinition().getPlans());
+        debugAPI.setPaths(content.getDefinition().getPaths());
+        debugAPI.setServices(content.getDefinition().getServices());
+        debugAPI.setProxy(content.getDefinition().getProxy());
+        debugAPI.setProperties(content.getDefinition().getProperties());
+        debugAPI.setResources(content.getDefinition().getResources());
+        debugAPI.setServices(content.getDefinition().getServices());
+        debugAPI.setResponseTemplates(content.getDefinition().getResponseTemplates());
         return debugAPI;
     }
 

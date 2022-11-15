@@ -22,18 +22,24 @@ import io.gravitee.common.event.EventManager;
 import io.gravitee.common.http.IdGenerator;
 import io.gravitee.common.utils.Hex;
 import io.gravitee.common.utils.UUID;
+import io.gravitee.gateway.core.component.ComponentProvider;
 import io.gravitee.gateway.env.GatewayConfiguration;
+import io.gravitee.gateway.env.HttpRequestTimeoutConfiguration;
 import io.gravitee.gateway.jupiter.reactor.DefaultHttpRequestDispatcher;
 import io.gravitee.gateway.jupiter.reactor.HttpRequestDispatcher;
-import io.gravitee.gateway.jupiter.reactor.handler.DefaultEntrypointResolver;
-import io.gravitee.gateway.jupiter.reactor.handler.EntrypointResolver;
+import io.gravitee.gateway.jupiter.reactor.handler.DefaultHttpAcceptorResolver;
+import io.gravitee.gateway.jupiter.reactor.handler.HttpAcceptorResolver;
 import io.gravitee.gateway.jupiter.reactor.processor.NotFoundProcessorChainFactory;
 import io.gravitee.gateway.jupiter.reactor.processor.PlatformProcessorChainFactory;
+import io.gravitee.gateway.jupiter.reactor.v4.reactor.ReactorFactory;
+import io.gravitee.gateway.jupiter.reactor.v4.reactor.ReactorFactoryManager;
+import io.gravitee.gateway.jupiter.reactor.v4.subscription.*;
 import io.gravitee.gateway.reactor.Reactor;
-import io.gravitee.gateway.reactor.handler.ReactorHandlerFactory;
-import io.gravitee.gateway.reactor.handler.ReactorHandlerFactoryManager;
+import io.gravitee.gateway.reactor.handler.AcceptorResolver;
+import io.gravitee.gateway.reactor.handler.ReactorEventListener;
 import io.gravitee.gateway.reactor.handler.ReactorHandlerRegistry;
 import io.gravitee.gateway.reactor.handler.context.provider.NodeTemplateVariableProvider;
+import io.gravitee.gateway.reactor.handler.impl.DefaultAcceptorResolver;
 import io.gravitee.gateway.reactor.handler.impl.DefaultReactorHandlerRegistry;
 import io.gravitee.gateway.reactor.impl.DefaultReactor;
 import io.gravitee.gateway.reactor.processor.RequestProcessorChainFactory;
@@ -43,7 +49,10 @@ import io.gravitee.gateway.reactor.processor.transaction.TransactionProcessorFac
 import io.gravitee.gateway.report.ReporterService;
 import io.gravitee.node.api.Node;
 import io.gravitee.plugin.alert.AlertEventProducer;
-import org.springframework.beans.factory.annotation.Autowired;
+import io.vertx.core.Vertx;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -57,33 +66,34 @@ import org.springframework.core.env.Environment;
 @Configuration
 public class ReactorConfiguration {
 
-    private static final String HEX_FORMAT = "hex";
+    public static final Logger log = LoggerFactory.getLogger(ReactorConfiguration.class);
 
-    //    @Autowired
-    //    protected io.gravitee.gateway.reactor.handler.EntrypointResolver entrypointResolver;
-    //
-    //    @Autowired
-    //    @Qualifier("v3RequestProcessorChainFactory")
-    //    private RequestProcessorChainFactory requestProcessorChainFactory;
-    //
-    //    @Autowired
-    //    @Qualifier("v3ResponseProcessorChainFactory")
-    //    private ResponseProcessorChainFactory responseProcessorChainFactory;
+    private static final String HEX_FORMAT = "hex";
 
     @Bean
     public Reactor v3Reactor(
-        io.gravitee.gateway.reactor.handler.EntrypointResolver entrypointResolver,
-        @Qualifier("v3RequestProcessorChainFactory") RequestProcessorChainFactory requestProcessorChainFactory,
-        @Qualifier("v3ResponseProcessorChainFactory") ResponseProcessorChainFactory responseProcessorChainFactory
+        final @Qualifier("v3AcceptorResolver") AcceptorResolver acceptorResolver,
+        final GatewayConfiguration gatewayConfiguration,
+        final @Qualifier("v3RequestProcessorChainFactory") RequestProcessorChainFactory requestProcessorChainFactory,
+        final @Qualifier("v3ResponseProcessorChainFactory") ResponseProcessorChainFactory responseProcessorChainFactory,
+        final @Qualifier(
+            "v3NotFoundProcessorChainFactory"
+        ) io.gravitee.gateway.reactor.processor.NotFoundProcessorChainFactory notFoundProcessorChainFactory
     ) {
         // DefaultReactor bean must be kept while we are still supporting v3 execution mode.
-        return new DefaultReactor(entrypointResolver, requestProcessorChainFactory, responseProcessorChainFactory);
+        return new DefaultReactor(
+            acceptorResolver,
+            gatewayConfiguration,
+            requestProcessorChainFactory,
+            responseProcessorChainFactory,
+            notFoundProcessorChainFactory
+        );
     }
 
     @Bean
-    public io.gravitee.gateway.reactor.handler.EntrypointResolver v3EntrypointResolver(ReactorHandlerRegistry reactorHandlerRegistry) {
+    public AcceptorResolver v3AcceptorResolver(ReactorHandlerRegistry reactorHandlerRegistry) {
         // V3 EntrypointResolver bean must be kept while we are still supporting v3 execution mode.
-        return new io.gravitee.gateway.reactor.handler.impl.DefaultEntrypointResolver(reactorHandlerRegistry);
+        return new DefaultAcceptorResolver(reactorHandlerRegistry);
     }
 
     @Bean
@@ -126,44 +136,69 @@ public class ReactorConfiguration {
 
     @Bean
     public HttpRequestDispatcher httpRequestDispatcher(
-        EventManager eventManager,
         GatewayConfiguration gatewayConfiguration,
-        ReactorHandlerRegistry reactorHandlerRegistry,
-        EntrypointResolver entrypointResolver,
+        HttpAcceptorResolver httpAcceptorResolver,
         IdGenerator idGenerator,
+        ComponentProvider globalComponentProvider,
         RequestProcessorChainFactory v3RequestProcessorChainFactory,
         ResponseProcessorChainFactory v3ResponseProcessorChainFactory,
         PlatformProcessorChainFactory platformProcessorChainFactory,
         NotFoundProcessorChainFactory notFoundProcessorChainFactory,
-        @Value("${services.tracing.enabled:false}") boolean tracingEnabled
+        @Value("${services.tracing.enabled:false}") boolean tracingEnabled,
+        HttpRequestTimeoutConfiguration httpRequestTimeoutConfiguration,
+        Vertx vertx
     ) {
         return new DefaultHttpRequestDispatcher(
-            eventManager,
             gatewayConfiguration,
-            reactorHandlerRegistry,
-            entrypointResolver,
+            httpAcceptorResolver,
             idGenerator,
+            globalComponentProvider,
             v3RequestProcessorChainFactory,
             v3ResponseProcessorChainFactory,
             platformProcessorChainFactory,
             notFoundProcessorChainFactory,
-            tracingEnabled
+            tracingEnabled,
+            httpRequestTimeoutConfiguration,
+            vertx
         );
     }
 
     @Bean
-    public EntrypointResolver entrypointResolver(ReactorHandlerRegistry reactorHandlerRegistry) {
-        return new DefaultEntrypointResolver(reactorHandlerRegistry);
+    public SubscriptionAcceptorResolver subscriptionAcceptorResolver(ReactorHandlerRegistry reactorHandlerRegistry) {
+        return new DefaultSubscriptionAcceptorResolver(reactorHandlerRegistry);
     }
 
     @Bean
-    public ReactorHandlerRegistry reactorHandlerManager(ReactorHandlerFactoryManager reactorHandlerFactoryManager) {
-        return new DefaultReactorHandlerRegistry(reactorHandlerFactoryManager);
+    public SubscriptionExecutionRequestFactory subscriptionExecutionRequestFactory() {
+        return new SubscriptionExecutionRequestFactory();
     }
 
     @Bean
-    public ReactorHandlerFactoryManager reactorHandlerFactoryManager(ReactorHandlerFactory reactorHandlerFactory) {
-        return new ReactorHandlerFactoryManager(reactorHandlerFactory);
+    public SubscriptionDispatcher subscriptionDispatcher(
+        SubscriptionAcceptorResolver subscriptionAcceptorResolver,
+        SubscriptionExecutionRequestFactory subscriptionExecutionRequestFactory
+    ) {
+        return new DefaultSubscriptionDispatcher(subscriptionAcceptorResolver, subscriptionExecutionRequestFactory);
+    }
+
+    @Bean
+    public HttpAcceptorResolver httpAcceptorResolver(ReactorHandlerRegistry reactorHandlerRegistry) {
+        return new DefaultHttpAcceptorResolver(reactorHandlerRegistry);
+    }
+
+    @Bean
+    public ReactorEventListener reactorEventListener(EventManager eventManager, ReactorHandlerRegistry reactorHandlerRegistry) {
+        return new ReactorEventListener(eventManager, reactorHandlerRegistry);
+    }
+
+    @Bean
+    public ReactorHandlerRegistry reactorHandlerRegistry(ReactorFactoryManager reactorFactoryManager) {
+        return new DefaultReactorHandlerRegistry(reactorFactoryManager);
+    }
+
+    @Bean
+    public ReactorFactoryManager reactorFactoryManager(List<ReactorFactory> reactorFactories) {
+        return new ReactorFactoryManager(reactorFactories);
     }
 
     @Bean

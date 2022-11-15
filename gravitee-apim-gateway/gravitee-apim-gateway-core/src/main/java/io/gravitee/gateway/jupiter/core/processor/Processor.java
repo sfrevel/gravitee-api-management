@@ -15,8 +15,8 @@
  */
 package io.gravitee.gateway.jupiter.core.processor;
 
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.reactivex.Completable;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
+import io.reactivex.rxjava3.core.Completable;
 
 /**
  * @author Jeoffrey HAEYAERT (jeoffrey.haeyaert at graviteesource.com)
@@ -25,5 +25,5 @@ import io.reactivex.Completable;
 public interface Processor {
     String getId();
 
-    Completable execute(final RequestExecutionContext ctx);
+    Completable execute(final MutableExecutionContext ctx);
 }

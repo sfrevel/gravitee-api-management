@@ -15,11 +15,11 @@
  */
 package io.gravitee.gateway.jupiter.reactor.processor.reporter;
 
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.processor.Processor;
 import io.gravitee.gateway.report.ReporterService;
 import io.gravitee.reporter.api.http.Metrics;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +44,7 @@ public class ReporterProcessor implements Processor {
     }
 
     @Override
-    public Completable execute(final RequestExecutionContext ctx) {
+    public Completable execute(final MutableExecutionContext ctx) {
         return Completable
             .fromRunnable(
                 () -> {

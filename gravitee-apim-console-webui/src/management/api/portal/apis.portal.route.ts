@@ -34,21 +34,15 @@ function apisPortalRouterConfig($stateProvider) {
   'ngInject';
   $stateProvider
     .state('management.apis.detail.portal', {
-      template: require('./apis.portal.route.html'),
       resolve: {
         qualityRules: (QualityRuleService: QualityRuleService) => QualityRuleService.list().then((response) => response.data),
       },
     })
     .state('management.apis.detail.portal.general', {
       url: '/portal',
-      template: require('./general/apiPortal.html'),
-      controller: 'ApiPortalController',
-      controllerAs: 'portalCtrl',
+      component: 'ngApiPortalDetails',
       data: {
-        menu: {
-          label: 'Portal',
-          icon: 'important_devices',
-        },
+        useAngularMaterial: true,
         docs: {
           page: 'management-api',
         },
@@ -350,7 +344,6 @@ function apisPortalRouterConfig($stateProvider) {
         },
       },
       data: {
-        menu: null,
         docs: {
           page: 'management-api-documentation',
         },
@@ -414,7 +407,6 @@ function apisPortalRouterConfig($stateProvider) {
         },
       },
       data: {
-        menu: null,
         docs: {
           page: 'management-api-documentation',
         },
@@ -453,7 +445,6 @@ function apisPortalRouterConfig($stateProvider) {
         },
       },
       data: {
-        menu: null,
         docs: {
           page: 'management-api-documentation',
         },
@@ -523,7 +514,6 @@ function apisPortalRouterConfig($stateProvider) {
         },
       },
       data: {
-        menu: null,
         docs: {
           page: 'management-api-documentation',
         },

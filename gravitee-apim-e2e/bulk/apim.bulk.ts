@@ -15,29 +15,29 @@
  */
 import { describe, expect, test } from '@jest/globals';
 
-import { APIsApi } from '@management-apis/APIsApi';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
 import {
   forManagementAsAdminUser,
   forManagementAsApiUser,
   forManagementAsAppUser,
   forPortalAsAdminUser,
   forPortalAsApiUser,
-} from '@client-conf/*';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { PlansFaker } from '@management-fakers/PlansFaker';
+} from '@gravitee/utils/configuration';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { PlansFaker } from '@gravitee/fixtures/management/PlansFaker';
 import { created, noContent, succeed, testif } from '../lib/jest-utils';
-import { LifecycleAction } from '@management-models/LifecycleAction';
-import { PlanStatus } from '@management-models/PlanStatus';
-import { ApiEntity } from '@management-models/ApiEntity';
-import { PlanEntity } from '@management-models/PlanEntity';
-import { ApplicationsApi } from '@management-apis/ApplicationsApi';
-import { ApplicationsFaker } from '@management-fakers/ApplicationsFaker';
-import { ApplicationEntity } from '@management-models/ApplicationEntity';
-import { PlanSecurityType } from '@management-models/PlanSecurityType';
-import { PortalApi as PortalManagementApi } from '@management-apis/PortalApi';
-import { ApiApi } from '@portal-apis/ApiApi';
-import { UpdateApiEntityFromJSON } from '@management-models/UpdateApiEntity';
-import { ApiLifecycleState } from '@management-models/ApiLifecycleState';
+import { LifecycleAction } from '@gravitee/management-webclient-sdk/src/lib/models/LifecycleAction';
+import { PlanStatus } from '@gravitee/management-webclient-sdk/src/lib/models/PlanStatus';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { PlanEntity } from '@gravitee/management-webclient-sdk/src/lib/models/PlanEntity';
+import { ApplicationsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/ApplicationsApi';
+import { ApplicationsFaker } from '@gravitee/fixtures/management/ApplicationsFaker';
+import { ApplicationEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApplicationEntity';
+import { PlanSecurityType } from '@gravitee/management-webclient-sdk/src/lib/models/PlanSecurityType';
+import { PortalApi as PortalManagementApi } from '@gravitee/management-webclient-sdk/src/lib/apis/PortalApi';
+import { ApiApi } from '@gravitee/portal-webclient-sdk/src/lib/apis/ApiApi';
+import { UpdateApiEntityFromJSON } from '@gravitee/management-webclient-sdk/src/lib/models/UpdateApiEntity';
+import { ApiLifecycleState } from '@gravitee/management-webclient-sdk/src/lib/models/ApiLifecycleState';
 import chalk from 'chalk';
 
 const apiManagementApiAsApiUser = new APIsApi(forManagementAsApiUser());
@@ -177,7 +177,7 @@ async function createWithPlan(): Promise<{ api: ApiEntity; planId: string }> {
     orgId,
     envId,
     api: api.id,
-    newPlanEntity: PlansFaker.newPlan({ status: PlanStatus.PUBLISHED, security: PlanSecurityType.APIKEY }),
+    newPlanEntity: PlansFaker.newPlan({ status: PlanStatus.PUBLISHED, security: PlanSecurityType.API_KEY }),
   });
   return {
     api,

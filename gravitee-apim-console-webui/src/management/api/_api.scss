@@ -6,11 +6,9 @@
 @import 'design/policies/policy';
 @import 'design/properties/properties';
 @import 'design/resources/resources';
-@import 'proxy/backend/endpoint/endpoint';
 @import 'proxy/backend/healthcheck/healthcheck';
 @import 'portal/plans/apiPlans';
 @import 'portal/subscriptions/subscriptions';
-@import 'portal/general/apiPortal';
 @import 'portal/apis.portal.route';
 
 .gravitee-api-container {
@@ -145,7 +143,7 @@
 }
 
 .gravitee-api-banner {
-  position: fixed;
+  position: relative;
   font-weight: bold;
   width: 100%;
   z-index: 11;

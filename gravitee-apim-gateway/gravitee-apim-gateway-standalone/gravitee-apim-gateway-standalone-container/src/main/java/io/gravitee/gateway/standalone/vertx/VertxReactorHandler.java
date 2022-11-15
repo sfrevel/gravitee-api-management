@@ -20,6 +20,7 @@ import io.gravitee.common.http.IdGenerator;
 import io.gravitee.common.http.MediaType;
 import io.gravitee.gateway.api.Request;
 import io.gravitee.gateway.api.Response;
+import io.gravitee.gateway.http.vertx.TimeoutServerResponse;
 import io.gravitee.gateway.http.vertx.VertxHttp2ServerRequest;
 import io.gravitee.gateway.http.vertx.VertxHttpServerRequest;
 import io.gravitee.gateway.http.vertx.grpc.VertxGrpcServerRequest;
@@ -62,7 +63,7 @@ public class VertxReactorHandler implements Handler<HttpServerRequest> {
             request = new VertxHttpServerRequest(httpServerRequest, idGenerator);
         }
 
-        route(request, request.create());
+        route(request, request.createResponse());
     }
 
     protected void route(final Request request, final Response response) {

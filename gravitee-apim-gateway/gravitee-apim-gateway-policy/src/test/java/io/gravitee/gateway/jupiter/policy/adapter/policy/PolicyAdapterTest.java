@@ -24,15 +24,12 @@ import io.gravitee.gateway.api.Response;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.stream.ReadWriteStream;
-import io.gravitee.gateway.jupiter.api.context.MessageExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.api.message.Message;
+import io.gravitee.gateway.jupiter.api.context.*;
+import io.gravitee.gateway.jupiter.policy.adapter.context.ExecutionContextAdapter;
 import io.gravitee.gateway.policy.Policy;
 import io.gravitee.gateway.policy.PolicyException;
-import io.reactivex.Flowable;
-import io.reactivex.Maybe;
-import io.reactivex.observers.TestObserver;
-import io.reactivex.subscribers.TestSubscriber;
+import io.reactivex.rxjava3.core.Maybe;
+import io.reactivex.rxjava3.observers.TestObserver;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -45,46 +42,37 @@ class PolicyAdapterTest {
     protected static final String MOCK_EXCEPTION_MESSAGE = "Mock exception";
 
     @Test
-    public void shouldCompleteInErrorWhenOnMessage() {
+    public void shouldCompleteInErrorWhenOnMessageRequest() {
         final Policy policy = mock(Policy.class);
         final MessageExecutionContext ctx = mock(MessageExecutionContext.class);
-        final Message msg = mock(Message.class);
 
         final PolicyAdapter cut = new PolicyAdapter(policy);
 
-        final TestObserver<Message> obs = cut.onMessage(ctx, msg).test();
+        final TestObserver<Void> obs = cut.onMessageRequest(ctx).test();
 
-        obs.assertErrorMessage("Cannot adapt v3 policy for message execution");
+        obs.assertError(t -> "Cannot adapt v3 policy for message execution".equals(t.getMessage()));
     }
 
     @Test
-    public void shouldCompleteInErrorWhenOnMessageFlow() {
+    public void shouldCompleteInErrorWhenOnMessageResponse() {
         final Policy policy = mock(Policy.class);
         final MessageExecutionContext ctx = mock(MessageExecutionContext.class);
 
         final PolicyAdapter cut = new PolicyAdapter(policy);
 
-        final TestSubscriber<Message> obs = cut.onMessageFlow(ctx, Flowable.empty()).test();
+        final TestObserver<Void> obs = cut.onMessageResponse(ctx).test();
 
-        obs.assertErrorMessage("Cannot adapt v3 policy for message flow execution");
+        obs.assertError(t -> "Cannot adapt v3 policy for message execution".equals(t.getMessage()));
     }
 
     @Test
     public void shouldCompleteWhenExecuteRequest() throws PolicyException {
         final Policy policy = mock(Policy.class);
-        final RequestExecutionContext ctx = mock(RequestExecutionContext.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
 
         when(policy.isRunnable()).thenReturn(true);
 
-        doAnswer(
-                invocation -> {
-                    PolicyChainAdapter policyChain = invocation.getArgument(0);
-                    policyChain.doNext(mock(Request.class), mock(Response.class));
-                    return null;
-                }
-            )
-            .when(policy)
-            .execute(any(PolicyChainAdapter.class), any(ExecutionContext.class));
+        mockPolicyExecution(policy);
 
         final PolicyAdapter cut = new PolicyAdapter(policy);
 
@@ -96,7 +84,7 @@ class PolicyAdapterTest {
     @Test
     public void shouldErrorWhenExceptionOccursDuringRequest() throws PolicyException {
         final Policy policy = mock(Policy.class);
-        final RequestExecutionContext ctx = mock(RequestExecutionContext.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
 
         when(policy.isRunnable()).thenReturn(true);
         doThrow(new PolicyException(MOCK_EXCEPTION_MESSAGE))
@@ -113,7 +101,7 @@ class PolicyAdapterTest {
     @Test
     public void shouldCompleteWhenNullStream() throws PolicyException {
         final Policy policy = mock(Policy.class);
-        final RequestExecutionContext ctx = mock(RequestExecutionContext.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
 
         when(policy.isStreamable()).thenReturn(true);
         when(policy.stream(any(PolicyChainAdapter.class), any(ExecutionContext.class))).thenReturn(null);
@@ -131,8 +119,8 @@ class PolicyAdapterTest {
         final Buffer policyChunk1 = Buffer.buffer("policyChunk1");
         final Buffer policyChunk2 = Buffer.buffer("policyChunk2");
         final Policy policy = mock(Policy.class);
-        final io.gravitee.gateway.jupiter.api.context.Request request = mock(io.gravitee.gateway.jupiter.api.context.Request.class);
-        final RequestExecutionContext ctx = mock(RequestExecutionContext.class);
+        final HttpRequest request = mock(HttpRequest.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
         final ReadWriteStream<Buffer> stream = mock(ReadWriteStream.class);
         final ArgumentCaptor<Maybe<Buffer>> requestBodyCaptor = ArgumentCaptor.forClass(Maybe.class);
 
@@ -183,8 +171,8 @@ class PolicyAdapterTest {
         final Buffer policyChunk1 = Buffer.buffer("policyChunk1");
         final Buffer policyChunk2 = Buffer.buffer("policyChunk2");
         final Policy policy = mock(Policy.class);
-        final io.gravitee.gateway.jupiter.api.context.Response response = mock(io.gravitee.gateway.jupiter.api.context.Response.class);
-        final RequestExecutionContext ctx = mock(RequestExecutionContext.class);
+        final HttpResponse response = mock(HttpResponse.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
         final ReadWriteStream<Buffer> stream = mock(ReadWriteStream.class);
 
         when(ctx.response()).thenReturn(response);
@@ -231,8 +219,8 @@ class PolicyAdapterTest {
     @Test
     public void shouldErrorWhenExceptionOccursDuringStream() throws PolicyException {
         final Policy policy = mock(Policy.class);
-        final io.gravitee.gateway.jupiter.api.context.Request request = mock(io.gravitee.gateway.jupiter.api.context.Request.class);
-        final RequestExecutionContext ctx = mock(RequestExecutionContext.class);
+        final HttpRequest request = mock(HttpRequest.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
         final ReadWriteStream<Buffer> stream = mock(ReadWriteStream.class);
 
         when(ctx.request()).thenReturn(request);
@@ -245,5 +233,79 @@ class PolicyAdapterTest {
         final TestObserver<Void> obs = cut.onRequest(ctx).test();
 
         obs.assertError(e -> e.getCause().getMessage().equals(MOCK_EXCEPTION_MESSAGE));
+    }
+
+    @Test
+    public void shouldRestoreContextWhenPolicyExecutionCompleted() throws PolicyException {
+        final Policy policy = mock(Policy.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
+        final ExecutionContextAdapter adaptedExecutionContext = mock(ExecutionContextAdapter.class);
+
+        when(ctx.getInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_ADAPTED_CONTEXT)).thenReturn(adaptedExecutionContext);
+        when(policy.isRunnable()).thenReturn(true);
+        mockPolicyExecution(policy);
+
+        final PolicyAdapter cut = new PolicyAdapter(policy);
+
+        final TestObserver<Void> obs = cut.onRequest(ctx).test();
+
+        obs.assertComplete();
+        verify(adaptedExecutionContext).restore();
+    }
+
+    @Test
+    public void shouldRestoreContextWhenPolicyExecutionCancelled() throws PolicyException {
+        final Policy policy = mock(Policy.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
+        final ExecutionContextAdapter adaptedExecutionContext = mock(ExecutionContextAdapter.class);
+
+        when(ctx.getInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_ADAPTED_CONTEXT)).thenReturn(adaptedExecutionContext);
+        when(policy.isRunnable()).thenReturn(true);
+
+        final PolicyAdapter cut = new PolicyAdapter(policy);
+
+        final TestObserver<Void> obs = cut.onRequest(ctx).test(true);
+
+        obs.assertNotComplete();
+        verify(adaptedExecutionContext).restore();
+    }
+
+    @Test
+    public void shouldRestoreContextWhenPolicyExecutionError() throws PolicyException {
+        final Policy policy = mock(Policy.class);
+        final HttpRequest request = mock(HttpRequest.class);
+        final HttpExecutionContext ctx = mock(HttpExecutionContext.class);
+        final ExecutionContextAdapter adaptedExecutionContext = mock(ExecutionContextAdapter.class);
+        final ReadWriteStream<Buffer> stream = mock(ReadWriteStream.class);
+
+        when(ctx.getInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_ADAPTED_CONTEXT)).thenReturn(adaptedExecutionContext);
+        when(policy.isRunnable()).thenReturn(true);
+        mockPolicyExecution(policy);
+
+        when(ctx.request()).thenReturn(request);
+        when(policy.isStreamable()).thenReturn(true);
+        when(policy.stream(any(PolicyChainAdapter.class), any(ExecutionContext.class))).thenReturn(stream);
+
+        // Error during stream.
+        doThrow(new RuntimeException(MOCK_EXCEPTION_MESSAGE)).when(stream).endHandler(any(Handler.class));
+
+        final PolicyAdapter cut = new PolicyAdapter(policy);
+
+        final TestObserver<Void> obs = cut.onRequest(ctx).test();
+
+        obs.assertError(e -> e.getCause().getMessage().equals(MOCK_EXCEPTION_MESSAGE));
+        verify(adaptedExecutionContext).restore();
+    }
+
+    private void mockPolicyExecution(Policy policy) throws PolicyException {
+        doAnswer(
+                invocation -> {
+                    PolicyChainAdapter policyChain = invocation.getArgument(0);
+                    policyChain.doNext(mock(Request.class), mock(Response.class));
+                    return null;
+                }
+            )
+            .when(policy)
+            .execute(any(PolicyChainAdapter.class), any(ExecutionContext.class));
     }
 }

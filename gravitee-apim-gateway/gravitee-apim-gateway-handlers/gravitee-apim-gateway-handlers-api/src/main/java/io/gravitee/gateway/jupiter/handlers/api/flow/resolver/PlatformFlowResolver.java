@@ -16,13 +16,13 @@
 package io.gravitee.gateway.jupiter.handlers.api.flow.resolver;
 
 import io.gravitee.definition.model.flow.Flow;
-import io.gravitee.gateway.handlers.api.definition.Api;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.core.condition.ConditionEvaluator;
+import io.gravitee.gateway.jupiter.api.context.GenericExecutionContext;
+import io.gravitee.gateway.jupiter.core.condition.ConditionFilter;
 import io.gravitee.gateway.jupiter.flow.AbstractFlowResolver;
 import io.gravitee.gateway.platform.Organization;
 import io.gravitee.gateway.platform.manager.OrganizationManager;
-import io.reactivex.Flowable;
+import io.gravitee.gateway.reactor.ReactableApi;
+import io.reactivex.rxjava3.core.Flowable;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -36,20 +36,20 @@ import java.util.stream.Collectors;
  */
 class PlatformFlowResolver extends AbstractFlowResolver {
 
-    private final Api api;
-    private Flowable<Flow> flows;
+    private final ReactableApi<?> api;
     private final OrganizationManager organizationManager;
+    private Flowable<Flow> flows;
     private Organization organization;
 
-    public PlatformFlowResolver(Api api, OrganizationManager organizationManager, ConditionEvaluator<Flow> evaluator) {
-        super(evaluator);
+    public PlatformFlowResolver(ReactableApi<?> api, OrganizationManager organizationManager, ConditionFilter<Flow> filter) {
+        super(filter);
         this.api = api;
         this.organizationManager = organizationManager;
         initFlows();
     }
 
     @Override
-    public Flowable<Flow> provideFlows(RequestExecutionContext ctx) {
+    public Flowable<Flow> provideFlows(GenericExecutionContext ctx) {
         initFlows();
         return this.flows;
     }

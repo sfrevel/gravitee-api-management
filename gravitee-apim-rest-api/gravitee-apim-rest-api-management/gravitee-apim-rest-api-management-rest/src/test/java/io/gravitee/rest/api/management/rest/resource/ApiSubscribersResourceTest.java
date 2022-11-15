@@ -15,25 +15,20 @@
  */
 package io.gravitee.rest.api.management.rest.resource;
 
-import static io.gravitee.common.http.HttpStatusCode.NOT_FOUND_404;
 import static io.gravitee.common.http.HttpStatusCode.OK_200;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonList;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.reset;
 
 import io.gravitee.common.data.domain.Page;
-import io.gravitee.rest.api.model.ApplicationEntity;
 import io.gravitee.rest.api.model.PrimaryOwnerEntity;
 import io.gravitee.rest.api.model.SubscriptionEntity;
 import io.gravitee.rest.api.model.UserEntity;
-import io.gravitee.rest.api.model.analytics.TopHitsAnalytics;
-import io.gravitee.rest.api.model.analytics.query.GroupByQuery;
 import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.model.application.ApplicationListItem;
 import io.gravitee.rest.api.model.common.SortableImpl;
-import io.gravitee.rest.api.model.subscription.SubscriptionQuery;
 import io.gravitee.rest.api.service.common.GraviteeContext;
 import java.io.IOException;
 import java.util.*;
@@ -42,8 +37,6 @@ import javax.ws.rs.core.Response;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 /**
  * @author Florent CHAMFROY (florent.chamfroy at graviteesource.com)
@@ -69,10 +62,6 @@ public class ApiSubscribersResourceTest extends AbstractResourceTest {
         user.setId(USER_NAME);
         PrimaryOwnerEntity primaryOwner = new PrimaryOwnerEntity(user);
         mockApi.setPrimaryOwner(primaryOwner);
-        Set<ApiEntity> mockApis = new HashSet<>(Arrays.asList(mockApi));
-        doReturn(mockApis)
-            .when(apiService)
-            .findPublishedByUser(eq(GraviteeContext.getExecutionContext()), any(), argThat(q -> singletonList(API_ID).equals(q.getIds())));
     }
 
     @After

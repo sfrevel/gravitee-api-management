@@ -17,10 +17,7 @@ package io.gravitee.gateway.standalone.junit.stmt;
 
 import io.gravitee.common.component.Lifecycle;
 import io.gravitee.definition.jackson.datatype.GraviteeMapper;
-import io.gravitee.definition.model.Api;
-import io.gravitee.definition.model.DefinitionVersion;
-import io.gravitee.definition.model.EndpointGroup;
-import io.gravitee.definition.model.ExecutionMode;
+import io.gravitee.definition.model.*;
 import io.gravitee.gateway.handlers.api.manager.ApiManager;
 import io.gravitee.gateway.policy.PolicyFactory;
 import io.gravitee.gateway.standalone.ApiLoaderInterceptor;
@@ -40,6 +37,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Date;
+import java.util.function.Supplier;
 import org.junit.runners.model.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,10 +58,15 @@ public class ApiDeployerStatement extends Statement {
 
     private final Statement base;
     private final Object target;
+    private ApplicationContext applicationContext;
 
     public ApiDeployerStatement(Statement base, Object target) {
         this.base = base;
         this.target = target;
+    }
+
+    public Supplier<ApplicationContext> getApplicationContext() {
+        return () -> applicationContext;
     }
 
     @Override
@@ -75,7 +78,7 @@ public class ApiDeployerStatement extends Statement {
         System.setProperty("gravitee.conf", graviteeHome + File.separator + "config" + File.separator + "gravitee.yml");
 
         GatewayTestContainer container = new GatewayTestContainer();
-        final ApplicationContext applicationContext = container.applicationContext();
+        applicationContext = container.applicationContext();
         final Environment environment = applicationContext.getBean(Environment.class);
 
         DefaultListableBeanFactory beanFactory = (DefaultListableBeanFactory) (
@@ -131,8 +134,21 @@ public class ApiDeployerStatement extends Statement {
         ApiManager apiManager = applicationContext.getBean(ApiManager.class);
         Api api = loadApi(target.getClass().getAnnotation(ApiDescriptor.class).value());
 
+        if (api.getPlans() == null || api.getPlans().isEmpty()) {
+            Plan defaultPlan = new Plan();
+            defaultPlan.setSecurity("key_less");
+            defaultPlan.setStatus("published");
+
+            api.setPlans(Collections.singletonList(defaultPlan));
+        }
+
         try {
             final io.gravitee.gateway.handlers.api.definition.Api apiToRegister = new io.gravitee.gateway.handlers.api.definition.Api(api);
+
+            if (DefinitionVersion.V1.equals(apiToRegister.getDefinitionVersion())) {
+                throw new RuntimeException("API Definition version should be >= 2.0.0");
+            }
+
             final boolean jupiterEnabled = environment.getProperty("api.jupiterMode.enabled", Boolean.class, false);
 
             if (jupiterEnabled) {
@@ -141,26 +157,16 @@ public class ApiDeployerStatement extends Statement {
                 if (jupiterDefault != null) {
                     if (jupiterDefault.equalsIgnoreCase("always")) {
                         // Force the execution mode to JUPITER as required by the environment variable.
-                        apiToRegister.setExecutionMode(ExecutionMode.JUPITER);
+                        apiToRegister.getDefinition().setExecutionMode(ExecutionMode.JUPITER);
                     } else if (jupiterDefault.equalsIgnoreCase("never")) {
                         // Switch back the execution mode to V3 as required by the environment variable.
-                        apiToRegister.setExecutionMode(ExecutionMode.V3);
-                    }
-
-                    if (
-                        apiToRegister.getExecutionMode() == ExecutionMode.JUPITER &&
-                        apiToRegister.getDefinitionVersion() == DefinitionVersion.V1
-                    ) {
-                        // Jupiter does not support V1 api definition, switch to V3 execution mode.
-                        apiToRegister.setExecutionMode(ExecutionMode.V3);
-                        logger.warn(
-                            "JUPITER EXECUTION MODE IS SET ON AN API DEFINITION V1. V1 IS NOT SUPPORTED BY JUPITER, SWITCH EXECUTION MODE TO V3"
-                        );
+                        apiToRegister.getDefinition().setExecutionMode(ExecutionMode.V3);
                     }
                 }
             }
             apiToRegister.setDeployedAt(new Date());
             apiManager.register(apiToRegister);
+            api.setExecutionMode(apiToRegister.getDefinition().getExecutionMode());
             base.evaluate();
         } catch (Exception e) {
             logger.error("An error occurred", e);

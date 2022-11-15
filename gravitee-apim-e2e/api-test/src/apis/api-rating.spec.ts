@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { forManagementAsAdminUser, forManagementAsApiUser } from '@client-conf/*';
+import { forManagementAsAdminUser, forManagementAsApiUser } from '@gravitee/utils/configuration';
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
-import { PortalApi } from '@management-apis/PortalApi';
-import { APIsApi } from '@management-apis/APIsApi';
-import { ApiEntity } from '@management-models/ApiEntity';
-import { ApisFaker } from '@management-fakers/ApisFaker';
+import { PortalApi } from '@gravitee/management-webclient-sdk/src/lib/apis/PortalApi';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
 import { fail, succeed } from '@lib/jest-utils';
 import faker from '@faker-js/faker';
-import { ApiApi } from '@portal-apis/ApiApi';
+import { ApiApi } from '@gravitee/portal-webclient-sdk/src/lib/apis/ApiApi';
 
 const orgId = 'DEFAULT';
 const envId = 'DEFAULT';

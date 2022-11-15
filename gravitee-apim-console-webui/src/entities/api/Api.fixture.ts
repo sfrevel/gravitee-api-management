@@ -22,7 +22,7 @@ export function fakeApi(modifier?: Partial<Api> | ((baseApi: Api) => Api)): Api 
     id: 'aee23b1e-34b1-4551-a23b-1e34b165516a',
     name: '\uD83E\uDE90 Planets',
     version: '1.0',
-    description: 'The whole universe in your hand. s',
+    description: 'The whole universe in your hand.',
     groups: ['f1194262-9157-4986-9942-629157f98682'],
     visibility: 'PUBLIC',
     state: 'STARTED',
@@ -172,7 +172,7 @@ export function fakeApi(modifier?: Partial<Api> | ((baseApi: Api) => Api)): Api 
     ],
     path_mappings: ['/product/:id'],
     response_templates: {
-      testhhh: {
+      customKey: {
         '*/*': {
           status: 400,
           body: '',
@@ -193,6 +193,9 @@ export function fakeApi(modifier?: Partial<Api> | ((baseApi: Api) => Api)): Api 
     disable_membership_notifications: false,
     background_url:
       'https://master-apim-api.cloud.gravitee.io/management/organizations/DEFAULT/environments/DEFAULT/apis/aee23b1e-34b1-4551-a23b-1e34b165516a/background?hash=1642675655553',
+    definition_context: {
+      origin: 'management',
+    },
   };
 
   if (isFunction(modifier)) {

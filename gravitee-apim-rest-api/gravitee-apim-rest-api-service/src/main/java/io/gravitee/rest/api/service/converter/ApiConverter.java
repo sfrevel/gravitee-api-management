@@ -15,24 +15,44 @@
  */
 package io.gravitee.rest.api.service.converter;
 
+import static io.gravitee.rest.api.model.WorkflowReferenceType.API;
+import static io.gravitee.rest.api.model.WorkflowType.REVIEW;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.gravitee.common.component.Lifecycle;
-import io.gravitee.definition.model.DefinitionVersion;
+import io.gravitee.definition.model.DefinitionContext;
+import io.gravitee.definition.model.flow.Flow;
 import io.gravitee.repository.management.model.Api;
 import io.gravitee.repository.management.model.ApiLifecycleState;
 import io.gravitee.repository.management.model.LifecycleState;
+import io.gravitee.repository.management.model.Workflow;
+import io.gravitee.repository.management.model.flow.FlowReferenceType;
+import io.gravitee.rest.api.model.CategoryEntity;
 import io.gravitee.rest.api.model.PlanEntity;
 import io.gravitee.rest.api.model.PrimaryOwnerEntity;
 import io.gravitee.rest.api.model.PropertiesEntity;
+import io.gravitee.rest.api.model.WorkflowState;
 import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.model.api.UpdateApiEntity;
+import io.gravitee.rest.api.model.parameters.Key;
+import io.gravitee.rest.api.model.parameters.ParameterReferenceType;
+import io.gravitee.rest.api.service.ParameterService;
+import io.gravitee.rest.api.service.PlanService;
+import io.gravitee.rest.api.service.WorkflowService;
+import io.gravitee.rest.api.service.common.ExecutionContext;
 import io.gravitee.rest.api.service.common.GraviteeContext;
+import io.gravitee.rest.api.service.configuration.flow.FlowService;
+import io.gravitee.rest.api.service.v4.PlanSearchService;
+import io.gravitee.rest.api.service.v4.mapper.CategoryMapper;
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -47,6 +67,23 @@ public class ApiConverter {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    @Lazy
+    private PlanService planService;
+
+    @Autowired
+    @Lazy
+    private FlowService flowService;
+
+    @Autowired
+    private CategoryMapper categoryMapper;
+
+    @Autowired
+    private ParameterService parameterService;
+
+    @Autowired
+    private WorkflowService workflowService;
+
     public ApiEntity toApiEntity(Api api, PrimaryOwnerEntity primaryOwnerEntity) {
         ApiEntity apiEntity = new ApiEntity();
 
@@ -60,6 +97,7 @@ public class ApiConverter {
         apiEntity.setReferenceType(GraviteeContext.ReferenceContextType.ENVIRONMENT.name());
         apiEntity.setReferenceId(api.getEnvironmentId());
         apiEntity.setCategories(api.getCategories());
+        apiEntity.setDefinitionContext(new DefinitionContext(api.getOrigin(), api.getMode()));
 
         if (api.getDefinition() != null) {
             try {
@@ -119,6 +157,46 @@ public class ApiConverter {
 
         if (primaryOwnerEntity != null) {
             apiEntity.setPrimaryOwner(primaryOwnerEntity);
+        }
+
+        return apiEntity;
+    }
+
+    public ApiEntity toApiEntity(
+        ExecutionContext executionContext,
+        Api api,
+        PrimaryOwnerEntity primaryOwner,
+        List<CategoryEntity> categories,
+        boolean readDatabaseFlows
+    ) {
+        ApiEntity apiEntity = toApiEntity(api, primaryOwner);
+        if (apiEntity.getDefinitionContext() == null) {
+            // Set context to management for backward compatibility.
+            apiEntity.setDefinitionContext(new DefinitionContext(Api.ORIGIN_MANAGEMENT, Api.MODE_FULLY_MANAGED));
+        }
+
+        Set<PlanEntity> plans = planService.findByApi(executionContext, api.getId());
+        apiEntity.setPlans(plans);
+
+        if (readDatabaseFlows) {
+            List<Flow> flows = flowService.findByReference(FlowReferenceType.API, api.getId());
+            apiEntity.setFlows(flows);
+        }
+
+        apiEntity.setCategories(categoryMapper.toIdentifier(executionContext, api.getCategories(), categories));
+
+        if (
+            parameterService.findAsBoolean(
+                executionContext,
+                Key.API_REVIEW_ENABLED,
+                api.getEnvironmentId(),
+                ParameterReferenceType.ENVIRONMENT
+            )
+        ) {
+            final List<Workflow> workflows = workflowService.findByReferenceAndType(API, api.getId(), REVIEW);
+            if (workflows != null && !workflows.isEmpty()) {
+                apiEntity.setWorkflowState(WorkflowState.valueOf(workflows.get(0).getState()));
+            }
         }
 
         return apiEntity;

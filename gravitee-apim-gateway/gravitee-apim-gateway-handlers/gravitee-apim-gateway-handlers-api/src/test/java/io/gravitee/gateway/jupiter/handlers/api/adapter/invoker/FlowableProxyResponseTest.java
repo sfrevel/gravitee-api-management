@@ -22,11 +22,11 @@ import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyResponse;
-import io.gravitee.gateway.jupiter.api.context.Request;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.Response;
-import io.reactivex.schedulers.TestScheduler;
-import io.reactivex.subscribers.TestSubscriber;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.HttpRequest;
+import io.gravitee.gateway.jupiter.api.context.HttpResponse;
+import io.reactivex.rxjava3.schedulers.TestScheduler;
+import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,13 +47,13 @@ class FlowableProxyResponseTest {
     protected static final int REQUEST_COUNT = 16;
 
     @Mock
-    private RequestExecutionContext ctx;
+    private HttpExecutionContext ctx;
 
     @Mock
-    private Request request;
+    private HttpRequest request;
 
     @Mock
-    private Response response;
+    private HttpResponse response;
 
     @Mock
     private ProxyResponse proxyResponse;
@@ -93,6 +93,15 @@ class FlowableProxyResponseTest {
     }
 
     @Test
+    public void shouldErrorImmediatelyWhenNoProxyResponse() {
+        cut = new FlowableProxyResponse();
+
+        final TestSubscriber<Buffer> obs = cut.test();
+
+        obs.assertComplete();
+    }
+
+    @Test
     public void shouldCompleteAndReceiveProxyResponseWhenSubscribing() {
         final TestSubscriber<Buffer> obs = cut.test();
 
@@ -119,6 +128,20 @@ class FlowableProxyResponseTest {
             final String expectedChunk = "chunk" + i;
             obs.assertValueAt(i, b -> b.toString().equals(expectedChunk));
         }
+    }
+
+    @Test
+    public void shouldCompleteAndCallOnComplete() {
+        Runnable onComplete = mock(Runnable.class);
+        cut.doOnComplete(onComplete);
+
+        final TestSubscriber<Buffer> obs = cut.test();
+        verify(proxyResponse).endHandler(endHandlerCaptor.capture());
+        endHandlerCaptor.getValue().handle(null);
+
+        obs.assertComplete();
+        verify(onComplete).run();
+        verifyNoMoreInteractions(onComplete);
     }
 
     @Test
@@ -177,7 +200,7 @@ class FlowableProxyResponseTest {
         obs.cancel();
         obs.assertNotComplete();
         obs.assertNoErrors();
-        assertTrue(obs.isDisposed());
+        assertTrue(obs.isCancelled());
 
         // Chunk produced before the cancellation must still have been received.
         obs.assertValueCount(1);

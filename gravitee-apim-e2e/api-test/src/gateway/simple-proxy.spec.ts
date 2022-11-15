@@ -13,17 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { APIsApi } from '@management-apis/APIsApi';
-import { forManagementAsApiUser } from '@client-conf/*';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { forManagementAsApiUser } from '@gravitee/utils/configuration';
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
 import { succeed } from '@lib/jest-utils';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { ApiEntity } from '@management-models/ApiEntity';
-import { PlansFaker } from '@management-fakers/PlansFaker';
-import { LifecycleAction } from '@management-models/LifecycleAction';
-import { PlanStatus } from '@management-models/PlanStatus';
-import { fetchGatewaySuccess } from '@lib/gateway';
-import { APIPlansApi } from '@management-apis/APIPlansApi';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { PlansFaker } from '@gravitee/fixtures/management/PlansFaker';
+import { LifecycleAction } from '@gravitee/management-webclient-sdk/src/lib/models/LifecycleAction';
+import { PlanStatus } from '@gravitee/management-webclient-sdk/src/lib/models/PlanStatus';
+import { fetchGatewaySuccess } from '@gravitee/utils/gateway';
+import { APIPlansApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIPlansApi';
+import { LoadBalancerTypeEnum } from '@gravitee/management-webclient-sdk/src/lib/models/LoadBalancer';
 
 const orgId = 'DEFAULT';
 const envId = 'DEFAULT';
@@ -42,6 +43,36 @@ describe('Gateway - Simple proxy', () => {
         orgId,
         body: ApisFaker.apiImport({
           plans: [PlansFaker.plan({ status: PlanStatus.PUBLISHED })],
+          proxy: ApisFaker.proxy({
+            groups: [
+              {
+                name: 'default-group',
+                endpoints: [
+                  {
+                    inherit: true,
+                    name: 'default',
+                    target: `${process.env.WIREMOCK_BASE_URL}/hello`,
+                    weight: 1,
+                    backup: false,
+                    type: 'http',
+                  },
+                ],
+                load_balancing: {
+                  type: LoadBalancerTypeEnum.ROUND_ROBIN,
+                },
+                http: {
+                  connectTimeout: 5000,
+                  idleTimeout: 60000,
+                  keepAlive: true,
+                  readTimeout: 10000,
+                  pipelining: false,
+                  maxConcurrentConnections: 100,
+                  useCompression: true,
+                  followRedirects: false,
+                },
+              },
+            ],
+          }),
         }),
       }),
     );
@@ -60,8 +91,7 @@ describe('Gateway - Simple proxy', () => {
       await fetchGatewaySuccess({ contextPath: createdApi.context_path })
         .then((res) => res.json())
         .then((json) => {
-          expect(json.date).toBe('11/05/2022 13:19:44.009');
-          expect(json.timestamp).toBe(1652275184009);
+          expect(json.message).toBe('Hello, World!');
         });
     });
   });

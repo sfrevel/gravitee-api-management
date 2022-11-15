@@ -82,11 +82,12 @@ public class EndpointHealthcheckResolver implements InitializingBean {
      * @return
      */
     public List<EndpointRule> resolve(Api api) {
-        HealthCheckService rootHealthCheck = api.getServices().get(HealthCheckService.class);
+        HealthCheckService rootHealthCheck = api.getDefinition().getServices().get(HealthCheckService.class);
         boolean hcEnabled = (rootHealthCheck != null && rootHealthCheck.isEnabled());
 
         // Filter to check only HTTP endpoints
         Stream<HttpEndpoint> httpEndpoints = api
+            .getDefinition()
             .getProxy()
             .getGroups()
             .stream()
@@ -192,7 +193,7 @@ public class EndpointHealthcheckResolver implements InitializingBean {
     public <T extends Endpoint> EndpointRule resolve(Api api, T endpoint) {
         HttpEndpoint httpEndpoint = convertToHttpEndpoint(endpoint);
         if (httpEndpoint != null) {
-            HealthCheckService rootHealthCheck = api.getServices().get(HealthCheckService.class);
+            HealthCheckService rootHealthCheck = api.getDefinition().getServices().get(HealthCheckService.class);
             boolean hcEnabled = (rootHealthCheck != null && rootHealthCheck.isEnabled());
 
             if (hcEnabled || httpEndpoint.getHealthCheck() != null) {

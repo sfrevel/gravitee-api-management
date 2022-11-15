@@ -20,7 +20,7 @@ import { UpdateApi } from './UpdateApi';
 export function fakeUpdateApi(modifier?: Partial<UpdateApi> | ((baseApi: UpdateApi) => UpdateApi)): UpdateApi {
   const base: UpdateApi = {
     version: '1.0',
-    description: 'The whole universe in your hand. s',
+    description: 'The whole universe in your hand.',
     proxy: {
       virtual_hosts: [{ path: '/planets', override_entrypoint: true }],
       strip_context_path: false,
@@ -129,13 +129,16 @@ export function fakeUpdateApi(modifier?: Partial<UpdateApi> | ((baseApi: UpdateA
     labels: [],
     path_mappings: ['/product/:id'],
     response_templates: {
-      testhhh: { '*/*': { status: 400, body: '' } },
+      customKey: { '*/*': { status: 400, body: '' } },
       DEFAULT: { '*/*': { status: 400, body: '' }, test: { status: 400, body: '' } },
     },
     lifecycle_state: 'PUBLISHED',
     disable_membership_notifications: false,
     flow_mode: 'DEFAULT',
     gravitee: '2.0.0',
+    definition_context: {
+      origin: 'management',
+    },
   };
 
   if (isFunction(modifier)) {

@@ -16,11 +16,13 @@
 package io.gravitee.rest.api.service.impl;
 
 import io.gravitee.fetcher.api.FilesFetcher;
+import io.gravitee.plugin.core.api.ConfigurablePluginManager;
 import io.gravitee.plugin.core.api.Plugin;
 import io.gravitee.plugin.fetcher.FetcherPlugin;
 import io.gravitee.rest.api.model.FetcherEntity;
 import io.gravitee.rest.api.model.PluginEntity;
 import io.gravitee.rest.api.service.FetcherService;
+import io.gravitee.rest.api.service.JsonSchemaService;
 import io.gravitee.rest.api.service.exceptions.TechnicalManagementException;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,7 +34,11 @@ import org.springframework.stereotype.Component;
  * @author GraviteeSource Team
  */
 @Component
-public class FetcherServiceImpl extends AbstractPluginService<FetcherPlugin, FetcherEntity> implements FetcherService {
+public class FetcherServiceImpl extends AbstractPluginService<FetcherPlugin<?>, FetcherEntity> implements FetcherService {
+
+    public FetcherServiceImpl(JsonSchemaService jsonSchemaService, ConfigurablePluginManager<FetcherPlugin<?>> pluginManager) {
+        super(jsonSchemaService, pluginManager);
+    }
 
     @Override
     public Set<FetcherEntity> findAll() {
@@ -42,7 +48,7 @@ public class FetcherServiceImpl extends AbstractPluginService<FetcherPlugin, Fet
     @Override
     public Set<FetcherEntity> findAll(boolean onlyFilesFetchers) {
         try {
-            Set<FetcherPlugin> fetcherDefinitions = super.list();
+            Set<FetcherPlugin<?>> fetcherDefinitions = super.list();
 
             if (onlyFilesFetchers) {
                 Class<?> filesFetcherClass = FilesFetcher.class;

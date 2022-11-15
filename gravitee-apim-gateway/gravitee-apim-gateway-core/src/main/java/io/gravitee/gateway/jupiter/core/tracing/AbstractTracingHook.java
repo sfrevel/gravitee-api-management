@@ -18,11 +18,11 @@ package io.gravitee.gateway.jupiter.core.tracing;
 import io.gravitee.gateway.jupiter.api.ExecutionFailure;
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
 import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.api.hook.*;
+import io.gravitee.gateway.jupiter.api.context.GenericExecutionContext;
 import io.gravitee.gateway.jupiter.api.hook.Hook;
 import io.gravitee.tracing.api.Span;
 import io.gravitee.tracing.api.Tracer;
+import io.reactivex.rxjava3.core.Completable;
 
 /**
  * @author Guillaume LAMIRAND (guillaume.lamirand at graviteesource.com)
@@ -31,39 +31,39 @@ import io.gravitee.tracing.api.Tracer;
 public abstract class AbstractTracingHook implements Hook {
 
     private static final String SPAN_PHASE_ATTR = "execution.phase";
-    private static final String CTX_TRACING_SPAN_ATTR = ExecutionContext.ATTR_INTERNAL_PREFIX + "tracing-span-%s";
+    private static final String ATTR_INTERNAL_TRACING_SPAN = "tracing-span-%s";
 
     @Override
-    public void pre(final String id, final RequestExecutionContext ctx, final ExecutionPhase executionPhase) {
-        createSpan(id, ctx, executionPhase);
+    public Completable pre(final String id, final ExecutionContext ctx, final ExecutionPhase executionPhase) {
+        return Completable.fromRunnable(() -> createSpan(id, ctx, executionPhase));
     }
 
     @Override
-    public void post(final String id, final RequestExecutionContext ctx, final ExecutionPhase executionPhase) {
-        endSpan(id, ctx);
+    public Completable post(final String id, final ExecutionContext ctx, final ExecutionPhase executionPhase) {
+        return Completable.fromRunnable(() -> endSpan(id, ctx));
     }
 
     @Override
-    public void error(final String id, final RequestExecutionContext ctx, final ExecutionPhase executionPhase, final Throwable throwable) {
-        endSpanOnError(id, ctx, throwable);
+    public Completable error(final String id, final ExecutionContext ctx, final ExecutionPhase executionPhase, final Throwable throwable) {
+        return Completable.fromRunnable(() -> endSpanOnError(id, ctx, throwable));
     }
 
     @Override
-    public void interrupt(final String id, final RequestExecutionContext ctx, final ExecutionPhase executionPhase) {
-        endSpan(id, ctx);
+    public Completable interrupt(final String id, final ExecutionContext ctx, final ExecutionPhase executionPhase) {
+        return Completable.fromRunnable(() -> endSpan(id, ctx));
     }
 
     @Override
-    public void interruptWith(
+    public Completable interruptWith(
         final String id,
-        final RequestExecutionContext ctx,
+        final ExecutionContext ctx,
         final ExecutionPhase executionPhase,
         final ExecutionFailure failure
     ) {
-        endSpanWithFailure(id, ctx, failure);
+        return Completable.fromRunnable(() -> endSpanWithFailure(id, ctx, failure));
     }
 
-    protected void createSpan(final String id, final RequestExecutionContext ctx, final ExecutionPhase executionPhase) {
+    protected void createSpan(final String id, final ExecutionContext ctx, final ExecutionPhase executionPhase) {
         Tracer tracer = ctx.getComponent(Tracer.class);
         if (tracer != null) {
             Span span = tracer.span(getSpanName(id, executionPhase));
@@ -74,18 +74,13 @@ public abstract class AbstractTracingHook implements Hook {
 
     protected abstract String getSpanName(final String id, final ExecutionPhase executionPhase);
 
-    protected void withAttributes(
-        final String id,
-        final RequestExecutionContext ctx,
-        final ExecutionPhase executionPhase,
-        final Span span
-    ) {
+    protected void withAttributes(final String id, final ExecutionContext ctx, final ExecutionPhase executionPhase, final Span span) {
         if (executionPhase != null) {
             span.withAttribute(SPAN_PHASE_ATTR, executionPhase.getLabel());
         }
     }
 
-    protected void endSpan(final String id, final RequestExecutionContext ctx) {
+    protected void endSpan(final String id, final ExecutionContext ctx) {
         Span span = getSpan(ctx, id);
         if (span != null) {
             span.end();
@@ -93,7 +88,7 @@ public abstract class AbstractTracingHook implements Hook {
         }
     }
 
-    protected void endSpanOnError(final String is, final RequestExecutionContext ctx, final Throwable throwable) {
+    protected void endSpanOnError(final String is, final GenericExecutionContext ctx, final Throwable throwable) {
         Span span = getSpan(ctx, is);
         if (span != null) {
             span.reportError(throwable).end();
@@ -101,7 +96,7 @@ public abstract class AbstractTracingHook implements Hook {
         }
     }
 
-    protected void endSpanWithFailure(final String id, final RequestExecutionContext ctx, final ExecutionFailure failure) {
+    protected void endSpanWithFailure(final String id, final GenericExecutionContext ctx, final ExecutionFailure failure) {
         Span span = getSpan(ctx, id);
         if (span != null) {
             span
@@ -114,19 +109,19 @@ public abstract class AbstractTracingHook implements Hook {
         }
     }
 
-    private void putSpan(String id, RequestExecutionContext ctx, Span span) {
+    private void putSpan(String id, GenericExecutionContext ctx, Span span) {
         ctx.putInternalAttribute(getCtxAttributeKey(id), span);
     }
 
-    private Span getSpan(RequestExecutionContext ctx, String is) {
+    private Span getSpan(GenericExecutionContext ctx, String is) {
         return ctx.getInternalAttribute(getCtxAttributeKey(is));
     }
 
-    private void removeSpan(RequestExecutionContext ctx, String id) {
+    private void removeSpan(GenericExecutionContext ctx, String id) {
         ctx.removeInternalAttribute(getCtxAttributeKey(id));
     }
 
     private String getCtxAttributeKey(final String id) {
-        return String.format(CTX_TRACING_SPAN_ATTR, id);
+        return String.format(ATTR_INTERNAL_TRACING_SPAN, id);
     }
 }

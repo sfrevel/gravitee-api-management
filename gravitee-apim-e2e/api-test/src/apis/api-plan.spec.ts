@@ -19,37 +19,37 @@ import {
   forManagementAsAppUser,
   forPortalAsAppUser,
   forPortalAsSimpleUser,
-} from '@client-conf/*';
+} from '@gravitee/utils/configuration';
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
-import { APIsApi } from '@management-apis/APIsApi';
-import { ApiEntity } from '@management-models/ApiEntity';
-import { ApiLifecycleState } from '@management-models/ApiLifecycleState';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { Visibility } from '@management-models/Visibility';
-import { GroupsFaker } from '@management-fakers/GroupsFaker';
-import { SearchableUser } from '@management-models/SearchableUser';
-import { RoleScope } from '@management-models/RoleScope';
-import { GroupEntity } from '@management-models/GroupEntity';
-import { ConfigurationApi } from '@management-apis/ConfigurationApi';
-import { UsersApi } from '@management-apis/UsersApi';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { ApiLifecycleState } from '@gravitee/management-webclient-sdk/src/lib/models/ApiLifecycleState';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { Visibility } from '@gravitee/management-webclient-sdk/src/lib/models/Visibility';
+import { GroupsFaker } from '@gravitee/fixtures/management/GroupsFaker';
+import { SearchableUser } from '@gravitee/management-webclient-sdk/src/lib/models/SearchableUser';
+import { RoleScope } from '@gravitee/management-webclient-sdk/src/lib/models/RoleScope';
+import { GroupEntity } from '@gravitee/management-webclient-sdk/src/lib/models/GroupEntity';
+import { ConfigurationApi } from '@gravitee/management-webclient-sdk/src/lib/apis/ConfigurationApi';
+import { UsersApi } from '@gravitee/management-webclient-sdk/src/lib/apis/UsersApi';
 import { find, cloneDeep } from 'lodash';
-import { ApplicationsApi } from '@management-apis/ApplicationsApi';
-import { ApplicationsFaker } from '@management-fakers/ApplicationsFaker';
-import { ApplicationEntity } from '@management-models/ApplicationEntity';
-import { ApiApi } from '@portal-apis/ApiApi';
+import { ApplicationsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/ApplicationsApi';
+import { ApplicationsFaker } from '@gravitee/fixtures/management/ApplicationsFaker';
+import { ApplicationEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApplicationEntity';
+import { ApiApi } from '@gravitee/portal-webclient-sdk/src/lib/apis/ApiApi';
 import { succeed } from '@lib/jest-utils';
-import { PlansFaker } from '@management-fakers/PlansFaker';
-import { PlanEntity } from '@management-models/PlanEntity';
-import { APIPlansApi } from '@management-apis/APIPlansApi';
-import { PlanStatus } from '@management-models/PlanStatus';
-import { SubscriptionApi } from '@portal-apis/SubscriptionApi';
-import { Subscription } from '@portal-models/Subscription';
-import { APISubscriptionsApi } from '@management-apis/APISubscriptionsApi';
-import { PlanSecurityType } from '@management-models/PlanSecurityType';
-import { PlanValidationType } from '@management-models/PlanValidationType';
-import { UpdatePlanEntity } from '@management-models/UpdatePlanEntity';
-import { SubscriptionStatus } from '@management-models/SubscriptionStatus';
-import { UpdateApiEntityFromJSON } from '@management-models/UpdateApiEntity';
+import { PlansFaker } from '@gravitee/fixtures/management/PlansFaker';
+import { PlanEntity } from '@gravitee/management-webclient-sdk/src/lib/models/PlanEntity';
+import { APIPlansApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIPlansApi';
+import { PlanStatus } from '@gravitee/management-webclient-sdk/src/lib/models/PlanStatus';
+import { SubscriptionApi } from '@gravitee/portal-webclient-sdk/src/lib/apis/SubscriptionApi';
+import { Subscription } from '@gravitee/portal-webclient-sdk/src/lib/models/Subscription';
+import { APISubscriptionsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APISubscriptionsApi';
+import { PlanSecurityType } from '@gravitee/management-webclient-sdk/src/lib/models/PlanSecurityType';
+import { PlanValidationType } from '@gravitee/management-webclient-sdk/src/lib/models/PlanValidationType';
+import { UpdatePlanEntity } from '@gravitee/management-webclient-sdk/src/lib/models/UpdatePlanEntity';
+import { SubscriptionStatus } from '@gravitee/management-webclient-sdk/src/lib/models/SubscriptionStatus';
+import { UpdateApiEntityFromJSON } from '@gravitee/management-webclient-sdk/src/lib/models/UpdateApiEntity';
 
 const orgId = 'DEFAULT';
 const envId = 'DEFAULT';
@@ -162,7 +162,7 @@ describe('API - Plan', () => {
           envId,
           orgId,
           api: createdApi.id,
-          newPlanEntity: PlansFaker.newPlan({ security: PlanSecurityType.APIKEY, validation: PlanValidationType.MANUAL }),
+          newPlanEntity: PlansFaker.newPlan({ security: PlanSecurityType.API_KEY, validation: PlanValidationType.MANUAL }),
         }),
         201,
       );

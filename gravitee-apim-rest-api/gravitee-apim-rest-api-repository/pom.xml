@@ -55,6 +55,16 @@
 			<artifactId>gravitee-plugin-core</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>io.gravitee.plugin</groupId>
+			<artifactId>gravitee-plugin-repository</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>io.gravitee.platform</groupId>
+			<artifactId>gravitee-platform-repository-api</artifactId>
+		</dependency>
+
 		<!-- Vertx.io -->
 		<dependency>
 			<groupId>io.vertx</groupId>
@@ -66,6 +76,13 @@
 			<groupId>jakarta.transaction</groupId>
 			<artifactId>jakarta.transaction-api</artifactId>
 			<scope>provided</scope>
+		</dependency>
+
+		<!-- Tests -->
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 </project>

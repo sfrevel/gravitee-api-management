@@ -16,9 +16,12 @@
 package io.gravitee.gateway.handlers.api.security;
 
 import io.gravitee.definition.model.Plan;
+import io.gravitee.gateway.api.service.ApiKey;
+import io.gravitee.gateway.api.service.Subscription;
+import io.gravitee.gateway.api.service.SubscriptionService;
+import io.gravitee.gateway.jupiter.api.policy.SecurityToken;
 import io.gravitee.gateway.security.core.AuthenticationContext;
 import io.gravitee.gateway.security.core.AuthenticationHandler;
-import io.gravitee.repository.management.model.ApiKey;
 import java.util.Optional;
 
 /**
@@ -29,30 +32,29 @@ public class ApiKeyPlanBasedAuthenticationHandler extends PlanBasedAuthenticatio
 
     private static final String APIKEY_CONTEXT_ATTRIBUTE = "apikey";
 
-    public ApiKeyPlanBasedAuthenticationHandler(AuthenticationHandler handler, Plan plan) {
+    private SubscriptionService subscriptionService;
+
+    public ApiKeyPlanBasedAuthenticationHandler(AuthenticationHandler handler, Plan plan, SubscriptionService subscriptionService) {
         super(handler, plan);
+        this.subscriptionService = subscriptionService;
     }
 
-    /**
-     * For now, we only check that the provided API key matches the plan.
-     * Since Gravitee 3.17, related subscription is also checked.
-     *
-     * {@inheritDoc}
-     */
     @Override
     protected boolean preCheckSubscription(AuthenticationContext authenticationContext) {
         if (!authenticationContext.contains(APIKEY_CONTEXT_ATTRIBUTE)) {
             // There is no apikey at all, so no subscription to pre check.
             return true;
         }
-
-        final Optional<ApiKey> optApikey = (Optional<ApiKey>) authenticationContext.get(APIKEY_CONTEXT_ATTRIBUTE);
-
-        if (optApikey.isEmpty()) {
-            // Same here, no api key, consider pre check is ok and let the policy do its job.
-            return true;
+        Optional<ApiKey> optApikey = (Optional<ApiKey>) authenticationContext.get(APIKEY_CONTEXT_ATTRIBUTE);
+        if (optApikey.isEmpty() || !optApikey.get().getPlan().equals(plan.getId())) {
+            return false;
         }
 
-        return optApikey.get().getPlan().equals(plan.getId());
+        Optional<Subscription> optSubscription = subscriptionService.getByApiAndSecurityToken(
+            plan.getApi(),
+            SecurityToken.forApiKey(optApikey.get().getKey()),
+            plan.getId()
+        );
+        return optSubscription.isPresent() && optSubscription.get().isTimeValid(authenticationContext.request().timestamp());
     }
 }

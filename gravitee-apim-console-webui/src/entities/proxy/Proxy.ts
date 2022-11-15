@@ -31,18 +31,21 @@ export interface ProxyVirtualHost {
   override_entrypoint?: boolean;
 }
 
-export interface ProxyGroup {
-  name?: string;
-  endpoints?: ProxyGroupEndpoint[];
-  load_balancing?: ProxyGroupLoadBalancer;
-  services?: Services;
+export interface ProxyConfiguration {
   proxy?: ProxyGroupProxy;
   http?: ProxyGroupHttpClientOptions;
   ssl?: ProxyGroupHttpClientSslOptions;
   headers?: Record<string, string>;
 }
 
-export interface ProxyGroupEndpoint {
+export interface ProxyGroup extends ProxyConfiguration {
+  name?: string;
+  endpoints?: ProxyGroupEndpoint[];
+  load_balancing?: ProxyGroupLoadBalancer;
+  services?: Services;
+}
+
+export interface ProxyGroupEndpoint extends ProxyConfiguration {
   name?: string;
   target?: string;
   weight?: number;
@@ -50,11 +53,21 @@ export interface ProxyGroupEndpoint {
   tenants?: string[];
   type?: string;
   inherit?: boolean;
+  healthcheck?: ProxyGroupEndpointHealthCheck;
 }
 
-export interface ProxyGroupLoadBalancer {
-  type: 'ROUND_ROBIN' | 'RANDOM' | 'WEIGHTED_ROUND_ROBIN' | 'WEIGHTED_RANDOM';
+export enum ProxyGroupLoadBalancerEnum {
+  'ROUND_ROBIN' = 'ROUND_ROBIN',
+  'RANDOM' = 'RANDOM',
+  'WEIGHTED_ROUND_ROBIN' = 'WEIGHTED_ROUND_ROBIN',
+  'WEIGHTED_RANDOM' = 'WEIGHTED_RANDOM',
 }
+export type ProxyGroupLoadBalancerType = `${ProxyGroupLoadBalancerEnum}`;
+
+export interface ProxyGroupLoadBalancer {
+  type: ProxyGroupLoadBalancerType;
+}
+
 export interface ProxyGroupProxy {
   enabled: boolean;
   useSystemProxy: boolean;
@@ -107,8 +120,30 @@ export interface ProxyCors {
 }
 
 export interface ProxyLogging {
-  mode: 'PROXY' | 'CLIENT' | 'PROXY' | 'CLIENT_PROXY';
+  mode: 'CLIENT' | 'PROXY' | 'CLIENT_PROXY';
   scope: 'NONE' | 'REQUEST' | 'RESPONSE' | 'REQUEST_RESPONSE';
   content: 'NONE' | 'HEADERS' | 'PAYLOADS' | 'HEADERS_PAYLOADS';
   condition?: string;
+}
+
+export interface ProxyGroupEndpointHealthCheck {
+  enabled: boolean;
+  inherit: boolean;
+  schedule: string;
+  steps: ProxyGroupEndpointHealthCheckStep[];
+}
+
+export interface ProxyGroupEndpointHealthCheckStep {
+  request: ProxyGroupEndpointHealthCheckStepRequest;
+  response: ProxyGroupEndpointHealthCheckStepResponse;
+}
+
+export interface ProxyGroupEndpointHealthCheckStepRequest {
+  headers: Record<string, string>;
+  method: string;
+  path: string;
+}
+
+export interface ProxyGroupEndpointHealthCheckStepResponse {
+  assertions: string[];
 }

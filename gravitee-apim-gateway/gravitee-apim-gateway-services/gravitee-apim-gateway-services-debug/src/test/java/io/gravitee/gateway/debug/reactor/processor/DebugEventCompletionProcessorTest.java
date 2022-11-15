@@ -18,7 +18,6 @@ package io.gravitee.gateway.debug.reactor.processor;
 import static io.gravitee.repository.management.model.Event.EventProperties.API_DEBUG_STATUS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
-import static org.powermock.api.mockito.PowerMockito.when;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -34,6 +33,7 @@ import io.gravitee.gateway.debug.reactor.handler.context.DebugExecutionContext;
 import io.gravitee.gateway.debug.reactor.handler.context.steps.DebugRequestStep;
 import io.gravitee.gateway.debug.vertx.VertxHttpServerResponseDebugDecorator;
 import io.gravitee.gateway.http.vertx.VertxHttpServerResponse;
+import io.gravitee.gateway.jupiter.debug.vertx.TimeoutServerResponseDebugDecorator;
 import io.gravitee.gateway.policy.PolicyMetadata;
 import io.gravitee.gateway.policy.StreamType;
 import io.gravitee.repository.exceptions.TechnicalException;
@@ -45,19 +45,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * @author Yann TAVERNIER (yann.tavernier at graviteesource.com)
  * @author GraviteeSource Team
  */
-@RunWith(MockitoJUnitRunner.class)
-public class DebugEventCompletionProcessorTest {
+@ExtendWith(MockitoExtension.class)
+class DebugEventCompletionProcessorTest {
 
     @Mock
     private EventRepository eventRepository;
@@ -79,16 +81,19 @@ public class DebugEventCompletionProcessorTest {
 
     private DebugEventCompletionProcessor cut;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         cut = new DebugEventCompletionProcessor(eventRepository, objectMapper);
         cut.handler(__ -> {});
+
+        lenient().when(debugApi.getDefinition()).thenReturn(new io.gravitee.definition.model.debug.DebugApi());
     }
 
-    @Test
-    public void shouldUpdateEventWithData() throws TechnicalException, JsonProcessingException {
+    @ParameterizedTest
+    @EnumSource(ResponseType.class)
+    void shouldUpdateEventWithData(ResponseType responseType) throws TechnicalException, JsonProcessingException {
         when(debugApi.getEventId()).thenReturn("event-id");
-        when(debugExecutionContext.getComponent(Api.class)).thenReturn(debugApi);
+        when(debugExecutionContext.getComponent(io.gravitee.gateway.handlers.api.definition.Api.class)).thenReturn(debugApi);
         when(debugExecutionContext.request()).thenReturn(request);
 
         DebugRequestStep step1 = new DebugRequestStep(
@@ -108,8 +113,14 @@ public class DebugEventCompletionProcessorTest {
         );
 
         when(debugExecutionContext.getDebugSteps()).thenReturn(List.of(step1, step2));
-        VertxHttpServerResponse debugResponse = getDebugResponse();
-        when(debugExecutionContext.response()).thenReturn(debugResponse);
+        if (ResponseType.REGULAR_RESPONSE.equals(responseType)) {
+            VertxHttpServerResponse debugResponse = getDebugResponse();
+            when(debugExecutionContext.response()).thenReturn(debugResponse);
+        } else {
+            TimeoutServerResponseDebugDecorator timeout = getTimeoutDebugResponse();
+            when(debugExecutionContext.response()).thenReturn(timeout);
+        }
+
         when(debugExecutionContext.getInvokerResponse()).thenReturn(getInvokerResponse());
 
         Event event = new Event();
@@ -130,13 +141,20 @@ public class DebugEventCompletionProcessorTest {
         assertThat(updatedEvent.getPayload()).isEqualTo("PAYLOAD_CONTENT");
     }
 
-    @Test
-    public void shouldSetEventInErrorWhenEventUpdateThrows() throws TechnicalException, JsonProcessingException {
+    @ParameterizedTest
+    @EnumSource(ResponseType.class)
+    void shouldSetEventInErrorWhenEventUpdateThrows(ResponseType responseType) throws TechnicalException, JsonProcessingException {
         when(debugApi.getEventId()).thenReturn("event-id");
-        when(debugExecutionContext.getComponent(Api.class)).thenReturn(debugApi);
+        when(debugExecutionContext.getComponent(io.gravitee.gateway.handlers.api.definition.Api.class)).thenReturn(debugApi);
         when(debugExecutionContext.request()).thenReturn(request);
-        VertxHttpServerResponse debugResponse = getDebugResponse();
-        when(debugExecutionContext.response()).thenReturn(debugResponse);
+        if (ResponseType.REGULAR_RESPONSE.equals(responseType)) {
+            VertxHttpServerResponse debugResponse = getDebugResponse();
+            when(debugExecutionContext.response()).thenReturn(debugResponse);
+        } else {
+            TimeoutServerResponseDebugDecorator timeout = getTimeoutDebugResponse();
+            when(debugExecutionContext.response()).thenReturn(timeout);
+        }
+
         when(debugExecutionContext.getInvokerResponse()).thenReturn(getInvokerResponse());
 
         Event event = new Event();
@@ -157,13 +175,20 @@ public class DebugEventCompletionProcessorTest {
             .isEqualTo(Map.of(API_DEBUG_STATUS.getValue(), ApiDebugStatus.ERROR.name()));
     }
 
-    @Test
-    public void shouldSetEventInErrorWhenWriteValueAsStringThrows() throws TechnicalException, JsonProcessingException {
+    @ParameterizedTest
+    @EnumSource(ResponseType.class)
+    void shouldSetEventInErrorWhenWriteValueAsStringThrows(ResponseType responseType) throws TechnicalException, JsonProcessingException {
         when(debugApi.getEventId()).thenReturn("event-id");
-        when(debugExecutionContext.getComponent(Api.class)).thenReturn(debugApi);
+        when(debugExecutionContext.getComponent(io.gravitee.gateway.handlers.api.definition.Api.class)).thenReturn(debugApi);
         when(debugExecutionContext.request()).thenReturn(request);
-        VertxHttpServerResponse debugResponse = getDebugResponse();
-        when(debugExecutionContext.response()).thenReturn(debugResponse);
+        if (ResponseType.REGULAR_RESPONSE.equals(responseType)) {
+            VertxHttpServerResponse debugResponse = getDebugResponse();
+            when(debugExecutionContext.response()).thenReturn(debugResponse);
+        } else {
+            TimeoutServerResponseDebugDecorator timeout = getTimeoutDebugResponse();
+            when(debugExecutionContext.response()).thenReturn(timeout);
+        }
+
         when(debugExecutionContext.getInvokerResponse()).thenReturn(getInvokerResponse());
 
         Event event = new Event();
@@ -183,9 +208,9 @@ public class DebugEventCompletionProcessorTest {
     }
 
     @Test
-    public void shouldHandleDebugEventWithoutEventInDatabase() throws TechnicalException {
+    void shouldHandleDebugEventWithoutEventInDatabase() throws TechnicalException {
         when(debugApi.getEventId()).thenReturn("event-id");
-        when(debugExecutionContext.getComponent(Api.class)).thenReturn(debugApi);
+        when(debugExecutionContext.getComponent(io.gravitee.gateway.handlers.api.definition.Api.class)).thenReturn(debugApi);
 
         when(eventRepository.findById("event-id")).thenReturn(Optional.empty());
 
@@ -195,7 +220,7 @@ public class DebugEventCompletionProcessorTest {
     }
 
     @Test
-    public void shouldConvertMultiMapHeadersToSimpleMap() {
+    void shouldConvertMultiMapHeadersToSimpleMap() {
         final HttpHeaders headers = HttpHeaders
             .create()
             .add("transfer-encoding", "chunked")
@@ -222,10 +247,17 @@ public class DebugEventCompletionProcessorTest {
 
     private VertxHttpServerResponseDebugDecorator getDebugResponse() {
         VertxHttpServerResponseDebugDecorator response = mock(VertxHttpServerResponseDebugDecorator.class);
-        when(response.headers()).thenReturn(HttpHeaders.create());
-        when(response.status()).thenReturn(200);
-        when(response.getBuffer()).thenReturn(Buffer.buffer("{}"));
+        lenient().when(response.headers()).thenReturn(HttpHeaders.create());
+        lenient().when(response.status()).thenReturn(200);
+        lenient().when(response.getBuffer()).thenReturn(Buffer.buffer("{}"));
         return response;
+    }
+
+    private TimeoutServerResponseDebugDecorator getTimeoutDebugResponse() {
+        TimeoutServerResponseDebugDecorator timeoutResponse = mock(TimeoutServerResponseDebugDecorator.class);
+        final VertxHttpServerResponseDebugDecorator debugResponse = getDebugResponse();
+        when(timeoutResponse.response()).thenReturn(debugResponse);
+        return timeoutResponse;
     }
 
     private InvokerResponse getInvokerResponse() {
@@ -234,5 +266,10 @@ public class DebugEventCompletionProcessorTest {
         invokerResponse.getBuffer().appendBuffer(Buffer.buffer("backend response"));
         invokerResponse.setHeaders(HttpHeaders.create().add("X-Header", "backend-header"));
         return invokerResponse;
+    }
+
+    private enum ResponseType {
+        REGULAR_RESPONSE,
+        TIMEOUT_RESPONSE,
     }
 }

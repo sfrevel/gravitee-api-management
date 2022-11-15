@@ -15,46 +15,44 @@
  */
 package io.gravitee.gateway.jupiter.reactor;
 
-import io.gravitee.common.event.Event;
-import io.gravitee.common.event.EventListener;
-import io.gravitee.common.event.EventManager;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_LISTENER_TYPE;
+
 import io.gravitee.common.http.IdGenerator;
 import io.gravitee.common.http.MediaType;
-import io.gravitee.common.service.AbstractService;
 import io.gravitee.definition.model.ExecutionMode;
 import io.gravitee.gateway.api.context.SimpleExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.core.component.ComponentProvider;
 import io.gravitee.gateway.env.GatewayConfiguration;
+import io.gravitee.gateway.env.HttpRequestTimeoutConfiguration;
 import io.gravitee.gateway.http.utils.WebSocketUtils;
 import io.gravitee.gateway.http.vertx.VertxHttp2ServerRequest;
 import io.gravitee.gateway.http.vertx.grpc.VertxGrpcServerRequest;
 import io.gravitee.gateway.http.vertx.ws.VertxWebSocketServerRequest;
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
-import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
+import io.gravitee.gateway.jupiter.api.ListenerType;
+import io.gravitee.gateway.jupiter.api.context.ContextAttributes;
 import io.gravitee.gateway.jupiter.api.hook.ChainHook;
-import io.gravitee.gateway.jupiter.core.context.MutableRequestExecutionContext;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.hook.HookHelper;
 import io.gravitee.gateway.jupiter.core.processor.ProcessorChain;
 import io.gravitee.gateway.jupiter.core.tracing.TracingHook;
 import io.gravitee.gateway.jupiter.http.vertx.VertxHttpServerRequest;
-import io.gravitee.gateway.jupiter.reactor.handler.EntrypointResolver;
-import io.gravitee.gateway.jupiter.reactor.handler.context.DefaultRequestExecutionContext;
+import io.gravitee.gateway.jupiter.reactor.handler.HttpAcceptorResolver;
+import io.gravitee.gateway.jupiter.reactor.handler.context.DefaultExecutionContext;
 import io.gravitee.gateway.jupiter.reactor.processor.NotFoundProcessorChainFactory;
 import io.gravitee.gateway.jupiter.reactor.processor.PlatformProcessorChainFactory;
-import io.gravitee.gateway.reactor.Reactable;
-import io.gravitee.gateway.reactor.ReactorEvent;
-import io.gravitee.gateway.reactor.handler.HandlerEntrypoint;
+import io.gravitee.gateway.reactor.handler.HttpAcceptor;
 import io.gravitee.gateway.reactor.handler.ReactorHandler;
-import io.gravitee.gateway.reactor.handler.ReactorHandlerRegistry;
 import io.gravitee.gateway.reactor.processor.RequestProcessorChainFactory;
 import io.gravitee.gateway.reactor.processor.ResponseProcessorChainFactory;
 import io.gravitee.reporter.api.http.Metrics;
-import io.reactivex.Completable;
-import io.reactivex.CompletableEmitter;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.CompletableEmitter;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpVersion;
-import io.vertx.reactivex.core.http.HttpHeaders;
-import io.vertx.reactivex.core.http.HttpServerRequest;
+import io.vertx.rxjava3.core.http.HttpHeaders;
+import io.vertx.rxjava3.core.http.HttpServerRequest;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -62,7 +60,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Request dispatcher responsible to dispatch any HTTP request to the appropriate {@link io.gravitee.gateway.reactor.handler.ReactorHandler}.
- * The execution mode depends on the entrypoint resolved and the associated handler:
+ * The execution mode depends on the reactable resolved and the associated handler:
  * <ul>
  *     <li>{@link ExecutionMode#JUPITER}: request is handled by an instance of {@link ApiReactor}</li>
  *     <li>{@link ExecutionMode#V3}: request is handled by an instance of {@link ReactorHandler}</li>
@@ -71,46 +69,50 @@ import org.slf4j.LoggerFactory;
  * @author Jeoffrey HAEYAERT (jeoffrey.haeyaert at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class DefaultHttpRequestDispatcher
-    extends AbstractService<HttpRequestDispatcher>
-    implements HttpRequestDispatcher, EventListener<ReactorEvent, Reactable> {
+public class DefaultHttpRequestDispatcher implements HttpRequestDispatcher {
 
-    public static final String ATTR_ENTRYPOINT = ExecutionContext.ATTR_PREFIX + "entrypoint";
+    private static final String ATTR_INTERNAL_VERTX_TIMER_ID = ContextAttributes.ATTR_PREFIX + "vertx-timer-id";
+    public static final String ATTR_ENTRYPOINT = ContextAttributes.ATTR_PREFIX + "entrypoint";
+
     private final Logger log = LoggerFactory.getLogger(DefaultHttpRequestDispatcher.class);
-    private final EventManager eventManager;
     private final GatewayConfiguration gatewayConfiguration;
-    private final ReactorHandlerRegistry reactorHandlerRegistry;
-    private final EntrypointResolver entrypointResolver;
+    private final HttpAcceptorResolver httpAcceptorResolver;
     private final IdGenerator idGenerator;
     private final RequestProcessorChainFactory requestProcessorChainFactory;
     private final ResponseProcessorChainFactory responseProcessorChainFactory;
     private final PlatformProcessorChainFactory platformProcessorChainFactory;
     private final NotFoundProcessorChainFactory notFoundProcessorChainFactory;
+    private final HttpRequestTimeoutConfiguration httpRequestTimeoutConfiguration;
+    private final Vertx vertx;
     private final List<ChainHook> processorChainHooks;
+    private final ComponentProvider globalComponentProvider;
 
     public DefaultHttpRequestDispatcher(
-        EventManager eventManager,
         GatewayConfiguration gatewayConfiguration,
-        ReactorHandlerRegistry reactorHandlerRegistry,
-        EntrypointResolver entrypointResolver,
+        HttpAcceptorResolver httpAcceptorResolver,
         IdGenerator idGenerator,
+        ComponentProvider globalComponentProvider,
         RequestProcessorChainFactory requestProcessorChainFactory,
         ResponseProcessorChainFactory responseProcessorChainFactory,
         PlatformProcessorChainFactory platformProcessorChainFactory,
         NotFoundProcessorChainFactory notFoundProcessorChainFactory,
-        boolean tracingEnabled
+        boolean tracingEnabled,
+        HttpRequestTimeoutConfiguration httpRequestTimeoutConfiguration,
+        Vertx vertx
     ) {
-        this.eventManager = eventManager;
         this.gatewayConfiguration = gatewayConfiguration;
-        this.reactorHandlerRegistry = reactorHandlerRegistry;
-        this.entrypointResolver = entrypointResolver;
+        this.httpAcceptorResolver = httpAcceptorResolver;
         this.idGenerator = idGenerator;
+        this.globalComponentProvider = globalComponentProvider;
         this.requestProcessorChainFactory = requestProcessorChainFactory;
         this.responseProcessorChainFactory = responseProcessorChainFactory;
         this.platformProcessorChainFactory = platformProcessorChainFactory;
         this.notFoundProcessorChainFactory = notFoundProcessorChainFactory;
+        this.httpRequestTimeoutConfiguration = httpRequestTimeoutConfiguration;
+        this.vertx = vertx;
 
-        processorChainHooks = new ArrayList<>();
+        this.processorChainHooks = new ArrayList<>();
+
         if (tracingEnabled) {
             processorChainHooks.add(new TracingHook("processor-chain"));
         }
@@ -129,61 +131,76 @@ public class DefaultHttpRequestDispatcher
     public Completable dispatch(HttpServerRequest httpServerRequest) {
         log.debug("Dispatching request on host {} and path {}", httpServerRequest.host(), httpServerRequest.path());
 
-        final HandlerEntrypoint handlerEntrypoint = entrypointResolver.resolve(httpServerRequest.host(), httpServerRequest.path());
-
-        if (handlerEntrypoint == null || handlerEntrypoint.target() == null || handlerEntrypoint.executionMode() == ExecutionMode.JUPITER) {
-            // For now, supports only sync requests.
-            VertxHttpServerRequest request = new VertxHttpServerRequest(httpServerRequest, idGenerator);
-
-            // Set gateway tenants and zones in request metrics.
-            prepareMetrics(request.metrics());
-
-            final ComponentProvider globalComponentProvider = applicationContext.getBean(ComponentProvider.class);
-            MutableRequestExecutionContext ctx = new DefaultRequestExecutionContext(request, request.response());
-            ctx.componentProvider(globalComponentProvider);
+        final HttpAcceptor httpAcceptor = httpAcceptorResolver.resolve(httpServerRequest.host(), httpServerRequest.path());
+        if (httpAcceptor == null || httpAcceptor.reactor() == null) {
+            MutableExecutionContext mutableCtx = prepareExecutionContext(httpServerRequest);
 
             ProcessorChain preProcessorChain = platformProcessorChainFactory.preProcessorChain();
             return HookHelper
                 .hook(
-                    preProcessorChain.execute(ctx, ExecutionPhase.REQUEST),
+                    () -> preProcessorChain.execute(mutableCtx, ExecutionPhase.REQUEST),
                     preProcessorChain.getId(),
                     processorChainHooks,
-                    ctx,
+                    mutableCtx,
+                    ExecutionPhase.REQUEST
+                )
+                .andThen(handleNotFound(mutableCtx));
+        } else if (httpAcceptor.reactor() instanceof ApiReactor) {
+            MutableExecutionContext mutableCtx = prepareExecutionContext(httpServerRequest);
+
+            ProcessorChain preProcessorChain = platformProcessorChainFactory.preProcessorChain();
+            return HookHelper
+                .hook(
+                    () -> preProcessorChain.execute(mutableCtx, ExecutionPhase.REQUEST),
+                    preProcessorChain.getId(),
+                    processorChainHooks,
+                    mutableCtx,
                     ExecutionPhase.REQUEST
                 )
                 .andThen(
                     Completable.defer(
                         () -> {
-                            if (handlerEntrypoint == null || handlerEntrypoint.target() == null) {
-                                return handleNotFound(ctx);
-                            } else {
-                                // Jupiter execution mode.
-                                ProcessorChain postProcessorChain = platformProcessorChainFactory.postProcessorChain();
-                                return handleJupiterRequest(ctx, handlerEntrypoint)
-                                    .andThen(
-                                        HookHelper.hook(
-                                            postProcessorChain.execute(ctx, ExecutionPhase.RESPONSE),
-                                            postProcessorChain.getId(),
-                                            processorChainHooks,
-                                            ctx,
-                                            ExecutionPhase.RESPONSE
-                                        )
-                                    );
-                            }
+                            // Jupiter execution mode.
+                            ProcessorChain postProcessorChain = platformProcessorChainFactory.postProcessorChain();
+                            return handleJupiterRequest(mutableCtx, httpAcceptor)
+                                .andThen(
+                                    HookHelper.hook(
+                                        () -> postProcessorChain.execute(mutableCtx, ExecutionPhase.RESPONSE),
+                                        postProcessorChain.getId(),
+                                        processorChainHooks,
+                                        mutableCtx,
+                                        ExecutionPhase.RESPONSE
+                                    )
+                                );
                         }
                     )
                 );
-        } else {
-            // V3 execution mode.
-            return handleV3Request(httpServerRequest, handlerEntrypoint);
         }
+        // V3 execution mode.
+        return handleV3Request(httpServerRequest, httpAcceptor);
     }
 
-    private Completable handleNotFound(final MutableRequestExecutionContext ctx) {
+    private MutableExecutionContext prepareExecutionContext(final HttpServerRequest httpServerRequest) {
+        VertxHttpServerRequest request = new VertxHttpServerRequest(httpServerRequest, idGenerator);
+
+        // Set gateway tenants and zones in request metrics.
+        prepareMetrics(request.metrics());
+
+        MutableExecutionContext ctx = createExecutionContext(request);
+        ctx.componentProvider(globalComponentProvider);
+        ctx.setInternalAttribute(ATTR_INTERNAL_LISTENER_TYPE, ListenerType.HTTP);
+        return ctx;
+    }
+
+    protected DefaultExecutionContext createExecutionContext(VertxHttpServerRequest request) {
+        return new DefaultExecutionContext(request, request.response());
+    }
+
+    private Completable handleNotFound(final MutableExecutionContext ctx) {
         ctx.request().contextPath(ctx.request().path());
         ProcessorChain processorChain = notFoundProcessorChainFactory.processorChain();
         return HookHelper.hook(
-            processorChain.execute(ctx, ExecutionPhase.RESPONSE),
+            () -> processorChain.execute(ctx, ExecutionPhase.RESPONSE),
             processorChain.getId(),
             processorChainHooks,
             ctx,
@@ -191,19 +208,19 @@ public class DefaultHttpRequestDispatcher
         );
     }
 
-    private Completable handleJupiterRequest(final MutableRequestExecutionContext ctx, final HandlerEntrypoint handlerEntrypoint) {
+    private Completable handleJupiterRequest(final MutableExecutionContext ctx, final HttpAcceptor handlerEntrypoint) {
         ctx.request().contextPath(handlerEntrypoint.path());
-        final ApiReactor apiReactor = handlerEntrypoint.target();
+        final ApiReactor apiReactor = (ApiReactor) handlerEntrypoint.reactor();
         return apiReactor.handle(ctx);
     }
 
-    private Completable handleV3Request(final HttpServerRequest httpServerRequest, final HandlerEntrypoint handlerEntrypoint) {
-        final ReactorHandler reactorHandler = handlerEntrypoint.target();
+    private Completable handleV3Request(final HttpServerRequest httpServerRequest, final HttpAcceptor handlerEntrypoint) {
+        final ReactorHandler reactorHandler = handlerEntrypoint.reactor();
 
-        io.gravitee.gateway.http.vertx.VertxHttpServerRequest request = createV3Request(httpServerRequest);
+        io.gravitee.gateway.http.vertx.VertxHttpServerRequest request = createV3Request(httpServerRequest, idGenerator);
 
         // Prepare invocation execution context.
-        SimpleExecutionContext simpleExecutionContext = new SimpleExecutionContext(request, request.create());
+        SimpleExecutionContext simpleExecutionContext = createV3ExecutionContext(httpServerRequest, request);
 
         // Required by the v3 execution mode.
         simpleExecutionContext.setAttribute(ATTR_ENTRYPOINT, handlerEntrypoint);
@@ -233,6 +250,11 @@ public class DefaultHttpRequestDispatcher
         final HttpServerRequest httpServerRequest
     ) {
         return context -> {
+            Long vertxTimerId = (Long) context.getAttribute(ATTR_INTERNAL_VERTX_TIMER_ID);
+            if (vertxTimerId != null) {
+                vertx.cancelTimer(vertxTimerId);
+                context.removeAttribute(ATTR_INTERNAL_VERTX_TIMER_ID);
+            }
             if (context.response().ended()) {
                 emitter.onComplete();
             } else {
@@ -254,7 +276,10 @@ public class DefaultHttpRequestDispatcher
         gatewayConfiguration.zone().ifPresent(metrics::setZone);
     }
 
-    private io.gravitee.gateway.http.vertx.VertxHttpServerRequest createV3Request(HttpServerRequest httpServerRequest) {
+    protected io.gravitee.gateway.http.vertx.VertxHttpServerRequest createV3Request(
+        HttpServerRequest httpServerRequest,
+        IdGenerator idGenerator
+    ) {
         io.gravitee.gateway.http.vertx.VertxHttpServerRequest request;
 
         if (isV3WebSocket(httpServerRequest)) {
@@ -272,6 +297,28 @@ public class DefaultHttpRequestDispatcher
         }
 
         return request;
+    }
+
+    private SimpleExecutionContext createV3ExecutionContext(
+        HttpServerRequest httpServerRequest,
+        io.gravitee.gateway.http.vertx.VertxHttpServerRequest request
+    ) {
+        SimpleExecutionContext simpleExecutionContext = new SimpleExecutionContext(request, request.createResponse());
+
+        if (httpRequestTimeoutConfiguration.getHttpRequestTimeout() > 0 && !isV3WebSocket(httpServerRequest)) {
+            final long vertxTimerId = vertx.setTimer(
+                httpRequestTimeoutConfiguration.getHttpRequestTimeout(),
+                event -> {
+                    if (!httpServerRequest.response().ended()) {
+                        final Handler<Long> handler = request.timeoutHandler();
+                        handler.handle(event);
+                    }
+                }
+            );
+            simpleExecutionContext.setAttribute(ATTR_INTERNAL_VERTX_TIMER_ID, vertxTimerId);
+        }
+
+        return simpleExecutionContext;
     }
 
     /**
@@ -295,34 +342,5 @@ public class DefaultHttpRequestDispatcher
         Handler<io.gravitee.gateway.api.ExecutionContext> handler
     ) {
         responseProcessorChainFactory.create().handler(handler).handle(context);
-    }
-
-    @Override
-    public void onEvent(Event<ReactorEvent, Reactable> event) {
-        switch (event.type()) {
-            case DEPLOY:
-                reactorHandlerRegistry.create(event.content());
-                break;
-            case UPDATE:
-                reactorHandlerRegistry.update(event.content());
-                break;
-            case UNDEPLOY:
-                reactorHandlerRegistry.remove(event.content());
-                break;
-        }
-    }
-
-    @Override
-    protected void doStart() throws Exception {
-        super.doStart();
-
-        eventManager.subscribeForEvents(this, ReactorEvent.class);
-    }
-
-    @Override
-    protected void doStop() throws Exception {
-        super.doStop();
-
-        reactorHandlerRegistry.clear();
     }
 }

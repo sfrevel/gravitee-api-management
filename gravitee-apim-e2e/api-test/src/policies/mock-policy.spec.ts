@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
-import { APIsApi } from '@management-apis/APIsApi';
-import { forManagementAsApiUser } from '@client-conf/*';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { ApiEntity } from '@management-models/ApiEntity';
-import { UpdateApiEntityFromJSON } from '@management-models/UpdateApiEntity';
-import { PlansFaker } from '@management-fakers/PlansFaker';
-import { PlanEntity } from '@management-models/PlanEntity';
-import { RuleMethodsEnum } from '@management-models/Rule';
-import { noContent, succeed } from '@lib/jest-utils';
-import { LifecycleAction } from '@management-models/LifecycleAction';
-import { fetchGatewaySuccess } from '@lib/gateway';
-import { PathOperatorOperatorEnum } from '@management-models/PathOperator';
-import { PlanStatus } from '@management-models/PlanStatus';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { forManagementAsApiUser } from '@gravitee/utils/configuration';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { UpdateApiEntityFromJSON } from '@gravitee/management-webclient-sdk/src/lib/models/UpdateApiEntity';
+import { PlansFaker } from '@gravitee/fixtures/management/PlansFaker';
+import { PlanEntity } from '@gravitee/management-webclient-sdk/src/lib/models/PlanEntity';
+import { RuleMethodsEnum } from '@gravitee/management-webclient-sdk/src/lib/models/Rule';
+import { describeIfV3, noContent, succeed } from '@lib/jest-utils';
+import { LifecycleAction } from '@gravitee/management-webclient-sdk/src/lib/models/LifecycleAction';
+import { fetchGatewaySuccess } from '@gravitee/utils/gateway';
+import { PathOperatorOperatorEnum } from '@gravitee/management-webclient-sdk/src/lib/models/PathOperator';
+import { PlanStatus } from '@gravitee/management-webclient-sdk/src/lib/models/PlanStatus';
 
 const apiManagementApiAsApiUser = new APIsApi(forManagementAsApiUser());
 const orgId = 'DEFAULT';
@@ -35,7 +35,7 @@ let createdApi: ApiEntity;
 let createdPlan: PlanEntity;
 
 describe('Mock policy', () => {
-  describe('On api v1 - based on paths', () => {
+  describeIfV3('On api v1 - based on paths', () => {
     beforeAll(async () => {
       const newPlanEntity = PlansFaker.newPlan({ status: PlanStatus.PUBLISHED });
 
@@ -120,7 +120,7 @@ describe('Mock policy', () => {
               name: '',
               path_operator: {
                 path: '/',
-                operator: PathOperatorOperatorEnum.STARTSWITH,
+                operator: PathOperatorOperatorEnum.STARTS_WITH,
               },
               condition: '',
               consumers: [],

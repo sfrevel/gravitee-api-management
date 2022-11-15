@@ -53,16 +53,14 @@ public class ApiGroupsResourceTest extends AbstractResourceTest {
     @Before
     public void init() {
         Mockito.reset(apiService);
+        Mockito.reset(apiGroupService);
         Mockito.reset(roleService);
     }
 
     @Test
     public void shouldReturn500IfTechnicalException() {
-        ApiEntity api = Mockito.mock(ApiEntity.class);
-
-        when(apiService.findById(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(api);
-
-        when(apiService.getGroupsWithMembers(GraviteeContext.getExecutionContext(), API_ID)).thenThrow(new TechnicalManagementException());
+        when(apiGroupService.getGroupsWithMembers(GraviteeContext.getExecutionContext(), API_ID))
+            .thenThrow(new TechnicalManagementException());
 
         Response response = envTarget(API_ID).path("groups").request().get();
 
@@ -82,7 +80,7 @@ public class ApiGroupsResourceTest extends AbstractResourceTest {
 
         when(apiService.findById(GraviteeContext.getExecutionContext(), API_ID)).thenReturn(api);
 
-        when(apiService.getGroupsWithMembers(GraviteeContext.getExecutionContext(), API_ID))
+        when(apiGroupService.getGroupsWithMembers(GraviteeContext.getExecutionContext(), API_ID))
             .thenReturn(Map.of(UuidString.generateRandom(), List.of(new GroupMemberEntity())));
 
         Response response = envTarget(API_ID).path("groups").request().get();

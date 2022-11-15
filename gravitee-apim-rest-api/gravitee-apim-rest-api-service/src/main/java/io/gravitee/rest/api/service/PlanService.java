@@ -34,18 +34,14 @@ import java.util.Set;
 public interface PlanService {
     PlanEntity findById(ExecutionContext executionContext, String plan);
 
-    Set<PlanEntity> findByIdIn(ExecutionContext executionContext, Set<String> ids);
-
     Set<PlanEntity> findByApi(ExecutionContext executionContext, String api);
-
-    List<PlanEntity> search(ExecutionContext executionContext, PlanQuery query);
 
     PlanEntity create(ExecutionContext executionContext, NewPlanEntity plan);
 
     PlanEntity update(ExecutionContext executionContext, UpdatePlanEntity plan);
     PlanEntity update(ExecutionContext executionContext, UpdatePlanEntity plan, boolean fromImport);
 
-    PlanEntity close(ExecutionContext executionContext, String plan, String username);
+    PlanEntity close(ExecutionContext executionContext, String plan);
 
     void delete(ExecutionContext executionContext, String plan);
 

@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { APIsApi } from '@management-apis/APIsApi';
-import { forManagementAsAdminUser, forManagementAsApiUser } from '@client-conf/*';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { forManagementAsAdminUser, forManagementAsApiUser } from '@gravitee/utils/configuration';
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
-import { ApisFaker } from '@management-fakers/ApisFaker';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
 import { succeed } from '@lib/jest-utils';
 
 const orgId = 'DEFAULT';

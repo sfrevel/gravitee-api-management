@@ -19,9 +19,9 @@ import io.gravitee.common.http.HttpStatusCode;
 import io.gravitee.common.http.MediaType;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.processor.Processor;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
@@ -43,7 +43,7 @@ public class NotFoundProcessor implements Processor {
     }
 
     @Override
-    public Completable execute(final RequestExecutionContext ctx) {
+    public Completable execute(final MutableExecutionContext ctx) {
         return Completable.defer(
             () -> {
                 LOGGER.warn("No handler can be found for request {}, returning NOT_FOUND (404)", ctx.request().path());

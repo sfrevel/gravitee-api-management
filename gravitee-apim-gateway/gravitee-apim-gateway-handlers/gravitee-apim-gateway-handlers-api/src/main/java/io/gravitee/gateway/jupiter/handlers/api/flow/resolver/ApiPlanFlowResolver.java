@@ -15,13 +15,13 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.flow.resolver;
 
+import io.gravitee.definition.model.Api;
 import io.gravitee.definition.model.flow.Flow;
-import io.gravitee.gateway.handlers.api.definition.Api;
-import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.core.condition.ConditionEvaluator;
+import io.gravitee.gateway.jupiter.api.context.ContextAttributes;
+import io.gravitee.gateway.jupiter.api.context.GenericExecutionContext;
+import io.gravitee.gateway.jupiter.core.condition.ConditionFilter;
 import io.gravitee.gateway.jupiter.flow.AbstractFlowResolver;
-import io.reactivex.Flowable;
+import io.reactivex.rxjava3.core.Flowable;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -35,18 +35,19 @@ class ApiPlanFlowResolver extends AbstractFlowResolver {
 
     private final Api api;
 
-    public ApiPlanFlowResolver(Api api, ConditionEvaluator<Flow> evaluator) {
-        super(evaluator);
+    public ApiPlanFlowResolver(Api api, ConditionFilter<Flow> filter) {
+        super(filter);
         this.api = api;
+        api.getPlans();
     }
 
     @Override
-    public Flowable<Flow> provideFlows(RequestExecutionContext ctx) {
+    public Flowable<Flow> provideFlows(GenericExecutionContext ctx) {
         if (api.getPlans() == null || api.getPlans().isEmpty()) {
             return Flowable.empty();
         }
 
-        final String planId = ctx.getAttribute(ExecutionContext.ATTR_PLAN);
+        final String planId = ctx.getAttribute(ContextAttributes.ATTR_PLAN);
 
         return Flowable.fromIterable(
             api

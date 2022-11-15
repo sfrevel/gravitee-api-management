@@ -13,25 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { forManagementAsAdminUser, forManagementAsApiUser, forManagementAsSimpleUser } from '@client-conf/*';
+import { forManagementAsAdminUser, forManagementAsApiUser, forManagementAsSimpleUser } from '@gravitee/utils/configuration';
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
-import { PortalApi } from '@management-apis/PortalApi';
-import { ConfigurationApi } from '@management-apis/ConfigurationApi';
-import { UsersApi } from '@management-apis/UsersApi';
-import { SearchableUser } from '@management-models/SearchableUser';
-import { QualityRuleEntity } from '@management-models/QualityRuleEntity';
-import { RoleScope } from '@management-models/RoleScope';
-import { GroupEntity } from '@management-models/GroupEntity';
-import { APIsApi } from '@management-apis/APIsApi';
-import { ApiEntity, ApiEntityStateEnum } from '@management-models/ApiEntity';
-import { WorkflowState } from '@management-models/WorkflowState';
-import { ApiLifecycleState } from '@management-models/ApiLifecycleState';
-import { LifecycleAction } from '@management-models/LifecycleAction';
-import { ReviewAction } from '@management-models/ReviewAction';
+import { PortalApi } from '@gravitee/management-webclient-sdk/src/lib/apis/PortalApi';
+import { ConfigurationApi } from '@gravitee/management-webclient-sdk/src/lib/apis/ConfigurationApi';
+import { UsersApi } from '@gravitee/management-webclient-sdk/src/lib/apis/UsersApi';
+import { SearchableUser } from '@gravitee/management-webclient-sdk/src/lib/models/SearchableUser';
+import { QualityRuleEntity } from '@gravitee/management-webclient-sdk/src/lib/models/QualityRuleEntity';
+import { RoleScope } from '@gravitee/management-webclient-sdk/src/lib/models/RoleScope';
+import { GroupEntity } from '@gravitee/management-webclient-sdk/src/lib/models/GroupEntity';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { ApiEntity, ApiEntityStateEnum } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { WorkflowState } from '@gravitee/management-webclient-sdk/src/lib/models/WorkflowState';
+import { ApiLifecycleState } from '@gravitee/management-webclient-sdk/src/lib/models/ApiLifecycleState';
+import { LifecycleAction } from '@gravitee/management-webclient-sdk/src/lib/models/LifecycleAction';
+import { ReviewAction } from '@gravitee/management-webclient-sdk/src/lib/models/ReviewAction';
 import { fail, succeed } from '@lib/jest-utils';
-import { CurrentUserApi } from '@management-apis/CurrentUserApi';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { GroupsFaker } from '@management-fakers/GroupsFaker';
+import { CurrentUserApi } from '@gravitee/management-webclient-sdk/src/lib/apis/CurrentUserApi';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { GroupsFaker } from '@gravitee/fixtures/management/GroupsFaker';
 import { find } from 'lodash';
 
 const orgId = 'DEFAULT';
@@ -218,7 +218,7 @@ describe('API - Quality', () => {
       let foundApi = find(foundApis, (a) => a.id === apiEntity.id);
 
       expect(foundApi).toBeTruthy();
-      expect(foundApi.workflow_state).toBe(WorkflowState.INREVIEW);
+      expect(foundApi.workflow_state).toBe(WorkflowState.IN_REVIEW);
     });
 
     test('should get API with IN_REVIEW status', async () => {
@@ -227,7 +227,7 @@ describe('API - Quality', () => {
       expect(foundApi).toBeTruthy();
       expect(foundApi.state).toBe(ApiEntityStateEnum.STOPPED);
       expect(foundApi.visibility).toBe('PRIVATE');
-      expect(foundApi.workflow_state).toBe(WorkflowState.INREVIEW);
+      expect(foundApi.workflow_state).toBe(WorkflowState.IN_REVIEW);
       expect(foundApi.lifecycle_state).toBe(ApiLifecycleState.CREATED);
     });
 
@@ -371,7 +371,7 @@ describe('API - Quality', () => {
       let foundApi = find(foundApis, (a) => a.id === apiEntity.id);
 
       expect(foundApi).toBeTruthy();
-      expect(foundApi.workflow_state).toBe(WorkflowState.INREVIEW);
+      expect(foundApi.workflow_state).toBe(WorkflowState.IN_REVIEW);
     });
 
     test('should get API with IN_REVIEW status', async () => {
@@ -380,7 +380,7 @@ describe('API - Quality', () => {
       expect(foundApi).toBeTruthy();
       expect(foundApi.state).toBe(ApiEntityStateEnum.STOPPED);
       expect(foundApi.visibility).toBe('PRIVATE');
-      expect(foundApi.workflow_state).toBe(WorkflowState.INREVIEW);
+      expect(foundApi.workflow_state).toBe(WorkflowState.IN_REVIEW);
       expect(foundApi.lifecycle_state).toBe(ApiLifecycleState.CREATED);
     });
 
@@ -421,7 +421,7 @@ describe('API - Quality', () => {
       let foundApi = find(foundApis, (a) => a.id === apiEntity.id);
 
       expect(foundApi).toBeTruthy();
-      expect(foundApi.workflow_state).toBe(WorkflowState.REVIEWOK);
+      expect(foundApi.workflow_state).toBe(WorkflowState.REVIEW_OK);
     });
 
     test('should get API with REVIEW_OK status', async () => {
@@ -430,7 +430,7 @@ describe('API - Quality', () => {
       expect(foundApi).toBeTruthy();
       expect(foundApi.state).toBe(ApiEntityStateEnum.STOPPED);
       expect(foundApi.visibility).toBe('PRIVATE');
-      expect(foundApi.workflow_state).toBe(WorkflowState.REVIEWOK);
+      expect(foundApi.workflow_state).toBe(WorkflowState.REVIEW_OK);
       expect(foundApi.lifecycle_state).toBe(ApiLifecycleState.CREATED);
     });
 

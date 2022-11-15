@@ -78,16 +78,8 @@ module.exports = {
 
   // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
   moduleNameMapper: {
-    '@client-conf/(.*)': '<rootDir>/lib/configuration',
-    '@management-fakers/(.*)': '<rootDir>/lib/fixtures/management/$1',
-    '@management-apis/(.*)': '<rootDir>/lib/management-webclient-sdk/src/lib/apis/$1',
-    '@management-models/(.*)': '<rootDir>/lib/management-webclient-sdk/src/lib/models/$1',
-    '@portal-apis/(.*)': '<rootDir>/lib/portal-webclient-sdk/src/lib/apis/$1',
-    '@portal-models/(.*)': '<rootDir>/lib/portal-webclient-sdk/src/lib/models/$1',
-    '@portal-fakers/(.*)': '<rootDir>/lib/fixtures/portal/$1',
     '@api-test-resources/(.*)': '<rootDir>/api-test/resources/$1',
     '@lib/jest-utils': '<rootDir>/lib/jest-utils',
-    '@lib/gateway': '<rootDir>/lib/gateway',
   },
 
   // An array of regexp pattern strings, matched against all module paths before considered 'visible' to the module loader
@@ -100,7 +92,7 @@ module.exports = {
   // notifyMode: "failure-change",
 
   // A preset that is used as a base for Jest's configuration
-  // preset: 'ts-jest',
+  preset: 'ts-jest',
 
   // Run tests from one or more projects
   // projects: undefined,
@@ -175,7 +167,6 @@ module.exports = {
 
   // A map from regular expressions to paths to transformers
   transform: {
-    '\\.(js|jsx|ts|tsx)$': '@sucrase/jest-plugin',
     '^.+\\.xml$': '<rootDir>/lib/jest-raw-loader.js',
   },
 
@@ -183,6 +174,7 @@ module.exports = {
 
   // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
   // transformIgnorePatterns: ["/node_modules/", "\\.pnp\\.[^\\\/]+$"],
+  transformIgnorePatterns: ['/node_modules/(?!(@gravitee)/)', '\\.pnp\\.[^\\/]+$'],
 
   // An array of regexp pattern strings that are matched against all modules before the module loader will automatically return a mock for them
   // unmockedModulePathPatterns: undefined,

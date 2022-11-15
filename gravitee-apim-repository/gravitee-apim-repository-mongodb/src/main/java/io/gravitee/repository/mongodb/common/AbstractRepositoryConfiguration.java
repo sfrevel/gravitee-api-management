@@ -21,8 +21,14 @@ import io.gravitee.repository.mongodb.management.transaction.NoTransactionManage
 import java.net.URI;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.env.Environment;
@@ -30,7 +36,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.annotation.Persistent;
 import org.springframework.data.mongodb.config.AbstractMongoClientConfiguration;
 import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.lang.NonNull;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 
@@ -38,12 +44,22 @@ import org.springframework.util.StringUtils;
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public abstract class AbstractRepositoryConfiguration extends AbstractMongoClientConfiguration {
+public abstract class AbstractRepositoryConfiguration extends AbstractMongoClientConfiguration implements ApplicationContextAware {
 
     protected final Environment environment;
 
     protected AbstractRepositoryConfiguration(Environment environment) {
         this.environment = environment;
+    }
+
+    @Override
+    public void setApplicationContext(@NonNull ApplicationContext applicationContext) throws BeansException {
+        final ConfigurableListableBeanFactory beanFactory = getConfigurableApplicationContext(applicationContext).getBeanFactory();
+        beanFactory.registerSingleton("graviteeTransactionManager", new NoTransactionManager());
+    }
+
+    private ConfigurableApplicationContext getConfigurableApplicationContext(ApplicationContext applicationContext) {
+        return (ConfigurableApplicationContext) Optional.ofNullable(applicationContext.getParent()).orElse(applicationContext);
     }
 
     @Override
@@ -79,10 +95,5 @@ public abstract class AbstractRepositoryConfiguration extends AbstractMongoClien
             }
         }
         return initialEntitySet;
-    }
-
-    @Bean
-    public AbstractPlatformTransactionManager graviteeTransactionManager() {
-        return new NoTransactionManager();
     }
 }

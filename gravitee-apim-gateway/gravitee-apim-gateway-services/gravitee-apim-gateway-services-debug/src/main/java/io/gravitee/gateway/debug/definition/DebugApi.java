@@ -19,15 +19,11 @@ import io.gravitee.definition.model.HttpRequest;
 import io.gravitee.definition.model.HttpResponse;
 import io.gravitee.gateway.debug.reactor.handler.context.PathTransformer;
 import io.gravitee.gateway.handlers.api.definition.Api;
-import io.gravitee.gateway.reactor.Reactable;
-import java.io.Serializable;
 
-public class DebugApi extends Api implements Reactable, Serializable {
+public class DebugApi extends Api {
 
     private HttpRequest request;
-
     private HttpResponse response;
-
     private String eventId;
 
     public DebugApi(String eventId, io.gravitee.definition.model.debug.DebugApi debugApi) {
@@ -35,14 +31,6 @@ public class DebugApi extends Api implements Reactable, Serializable {
         this.setResponse(debugApi.getResponse());
         this.setRequest(debugApi.getRequest());
         this.setEventId(eventId);
-
-        // Instead of doing it here, we could implement a custom DebugHandlerEntrypointFactory which allows to override
-        // path(), create a new virtual host with this new path to accept an overriden request targeting this path.
-        if (getProxy() != null && getProxy().getVirtualHosts() != null) {
-            getProxy()
-                .getVirtualHosts()
-                .forEach(virtualHost -> virtualHost.setPath(PathTransformer.computePathWithEventId(eventId, virtualHost.getPath())));
-        }
     }
 
     public HttpRequest getRequest() {
@@ -61,6 +49,10 @@ public class DebugApi extends Api implements Reactable, Serializable {
         this.response = response;
     }
 
+    public String getEventId() {
+        return eventId;
+    }
+
     /**
      * When setting eventId, virtual hosts' path are overriden  by /{eventId}-path in order to distinguish each instance
      * of debug api
@@ -68,9 +60,14 @@ public class DebugApi extends Api implements Reactable, Serializable {
      */
     public void setEventId(String eventId) {
         this.eventId = eventId;
-    }
 
-    public String getEventId() {
-        return eventId;
+        // Instead of doing it here, we could implement a custom DebugHandlerEntrypointFactory which allows to override
+        // path(), create a new virtual host with this new path to accept an overridden request targeting this path.
+        if (definition.getProxy() != null && definition.getProxy().getVirtualHosts() != null) {
+            definition
+                .getProxy()
+                .getVirtualHosts()
+                .forEach(virtualHost -> virtualHost.setPath(PathTransformer.computePathWithEventId(this.eventId, virtualHost.getPath())));
+        }
     }
 }

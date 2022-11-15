@@ -22,17 +22,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.gravitee.definition.model.Plan;
+import io.gravitee.gateway.api.service.Subscription;
+import io.gravitee.gateway.api.service.SubscriptionService;
 import io.gravitee.gateway.security.core.AuthenticationContext;
 import io.gravitee.gateway.security.core.AuthenticationHandler;
 import io.gravitee.gateway.security.core.LazyJwtToken;
 import io.gravitee.repository.exceptions.TechnicalException;
-import io.gravitee.repository.management.api.SubscriptionRepository;
-import io.gravitee.repository.management.api.search.SubscriptionCriteria;
-import io.gravitee.repository.management.model.Subscription;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,13 +47,15 @@ public class JwtPlanBasedAuthenticationHandler extends PlanBasedAuthenticationHa
     private static final String CLAIM_AUDIENCE = "aud";
     private static final String CLAIM_AUTHORIZED_PARTY = "azp";
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionService subscriptionService;
 
-    public JwtPlanBasedAuthenticationHandler(AuthenticationHandler handler, Plan plan, SubscriptionRepository subscriptionRepository) {
+    private AtomicReference<String> customClientIdClaimRef;
+
+    public JwtPlanBasedAuthenticationHandler(AuthenticationHandler handler, Plan plan, SubscriptionService subscriptionService) {
         super(handler, plan);
-        this.subscriptionRepository = subscriptionRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     @Override
@@ -75,45 +74,30 @@ public class JwtPlanBasedAuthenticationHandler extends PlanBasedAuthenticationHa
     }
 
     private boolean preCheckSubscription(String api, String clientId, AuthenticationContext authenticationContext) {
-        try {
-            if (
-                Boolean.TRUE.equals(
-                    authenticationContext.getInternalAttribute(ATTR_INTERNAL_LAST_SECURITY_HANDLER_SUPPORTING_SAME_TOKEN_TYPE)
-                )
-            ) {
-                // Last handler (jwt or oauth), no need to check the subscription, let the CheckSubscriptionPolicy do the job and return an appropriate error.
+        if (
+            Boolean.TRUE.equals(authenticationContext.getInternalAttribute(ATTR_INTERNAL_LAST_SECURITY_HANDLER_SUPPORTING_SAME_TOKEN_TYPE))
+        ) {
+            // Last handler (jwt or oauth), no need to check the subscription, let the CheckSubscriptionPolicy do the job and return an appropriate error.
+            return true;
+        }
+
+        // Find a matching subscription to try to target the good plan.
+        Optional<io.gravitee.gateway.api.service.Subscription> subscriptionOpt = subscriptionService.getByApiAndClientIdAndPlan(
+            api,
+            clientId,
+            plan.getId()
+        );
+
+        if (subscriptionOpt.isPresent()) {
+            final Subscription subscription = subscriptionOpt.get();
+            if (subscription.isTimeValid(authenticationContext.request().timestamp())) {
+                authenticationContext.setApplication(subscription.getApplication());
+                authenticationContext.setPlan(subscription.getPlan());
+                authenticationContext.setSubscription(subscription.getId());
+                authenticationContext.request().metrics().setSecurityType(JWT);
+                authenticationContext.request().metrics().setSecurityToken(clientId);
                 return true;
             }
-
-            // Find a matching subscription to try to target the good plan.
-            final List<Subscription> subscriptions = subscriptionRepository.search(
-                new SubscriptionCriteria.Builder()
-                    .apis(Collections.singleton(api))
-                    .plans(Collections.singleton(plan.getId()))
-                    .clientId(clientId)
-                    .status(Subscription.Status.ACCEPTED)
-                    .build()
-            );
-
-            if (subscriptions != null && !subscriptions.isEmpty()) {
-                final Subscription subscription = subscriptions.get(0);
-                if (
-                    subscription != null &&
-                    (
-                        subscription.getEndingAt() == null ||
-                        subscription.getEndingAt().after(new Date(authenticationContext.request().timestamp()))
-                    )
-                ) {
-                    authenticationContext.setApplication(subscription.getApplication());
-                    authenticationContext.setPlan(subscription.getPlan());
-                    authenticationContext.setSubscription(subscription.getId());
-                    authenticationContext.request().metrics().setSecurityType(JWT);
-                    authenticationContext.request().metrics().setSecurityToken(clientId);
-                    return true;
-                }
-            }
-        } catch (TechnicalException e) {
-            LOGGER.error("Failed to check JWT plan subscription", e);
         }
         return false;
     }
@@ -126,8 +110,9 @@ public class JwtPlanBasedAuthenticationHandler extends PlanBasedAuthenticationHa
      * @return clientId
      */
     protected String getClientId(Map<String, Object> claims) {
-        if (getCustomClientIdClaimName() != null) {
-            Object clientIdClaim = claims.get(getCustomClientIdClaimName());
+        final String customClientIdClaimName = getCustomClientIdClaimName();
+        if (customClientIdClaimName != null) {
+            Object clientIdClaim = claims.get(customClientIdClaimName);
             return extractClientId(clientIdClaim);
         }
 
@@ -180,16 +165,23 @@ public class JwtPlanBasedAuthenticationHandler extends PlanBasedAuthenticationHa
      * @return name of the claim containing client_id configured at policy level
      */
     private String getCustomClientIdClaimName() {
-        try {
-            if (plan.getSecurityDefinition() != null) {
-                JsonNode clientIdClaimNode = objectMapper.readTree(plan.getSecurityDefinition()).get(CLIENT_ID_CLAIM_PARAMETER);
-                if (clientIdClaimNode != null) {
-                    return clientIdClaimNode.asText();
-                }
-            }
-        } catch (JsonProcessingException e) {
-            LOGGER.error("Failed to read plan security definition", e);
+        if (customClientIdClaimRef != null) {
+            return customClientIdClaimRef.get();
         }
-        return null;
+
+        customClientIdClaimRef = new AtomicReference<>(null);
+
+        final String securityDefinition = plan.getSecurityDefinition();
+        if (securityDefinition != null) {
+            try {
+                JsonNode clientIdClaimNode = MAPPER.readTree(securityDefinition).get(CLIENT_ID_CLAIM_PARAMETER);
+                if (clientIdClaimNode != null) {
+                    customClientIdClaimRef.set(clientIdClaimNode.textValue());
+                }
+            } catch (JsonProcessingException e) {
+                LOGGER.error("Failed to read plan security definition", e);
+            }
+        }
+        return customClientIdClaimRef.get();
     }
 }

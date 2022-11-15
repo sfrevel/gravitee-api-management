@@ -17,7 +17,6 @@ package io.gravitee.gateway.reactor.handler;
 
 import io.gravitee.gateway.reactor.Reactable;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -35,9 +34,11 @@ public interface ReactorHandlerRegistry {
     boolean contains(Reactable reactable);
 
     /**
-     * An ordered collection of registered entrypoints.
+     * A collection of {@link Acceptor} based on the acceptorType parameter and ordered by natural comparison method.
      *
+     * @param acceptorType The type of acceptor
      * @return
+     * @param <T>
      */
-    Collection<HandlerEntrypoint> getEntrypoints();
+    <T extends Acceptor<T>> Collection<T> getAcceptors(Class<T> acceptorType);
 }

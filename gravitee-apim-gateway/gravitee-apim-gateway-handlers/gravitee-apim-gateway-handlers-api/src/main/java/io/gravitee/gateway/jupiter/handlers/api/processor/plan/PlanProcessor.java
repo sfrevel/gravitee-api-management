@@ -17,11 +17,12 @@ package io.gravitee.gateway.jupiter.handlers.api.processor.plan;
 
 import static io.gravitee.gateway.api.ExecutionContext.*;
 
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.ContextAttributes;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.processor.Processor;
 import io.gravitee.gateway.jupiter.handlers.api.security.SecurityChain;
 import io.gravitee.reporter.api.http.Metrics;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
 import java.util.Objects;
 
 /**
@@ -30,9 +31,9 @@ import java.util.Objects;
  */
 public class PlanProcessor implements Processor {
 
+    public static final String ID = "processor-plan";
     static final String APPLICATION_NAME_ANONYMOUS = "1";
     static final String PLAN_NAME_ANONYMOUS = "1";
-    public static final String ID = "plan";
 
     private PlanProcessor() {}
 
@@ -46,12 +47,12 @@ public class PlanProcessor implements Processor {
     }
 
     @Override
-    public Completable execute(RequestExecutionContext ctx) {
+    public Completable execute(MutableExecutionContext ctx) {
         return Completable.fromRunnable(
             () -> {
                 final Metrics metrics = ctx.request().metrics();
 
-                if (Objects.equals(true, ctx.getAttribute(SecurityChain.SKIP_SECURITY_CHAIN))) {
+                if (Objects.equals(true, ctx.getAttribute(ContextAttributes.ATTR_SKIP_SECURITY_CHAIN))) {
                     final String remoteAddress = ctx.request().remoteAddress();
 
                     // Fixes consuming application and subscription which are data that can be used by policies (ie. rate-limit).

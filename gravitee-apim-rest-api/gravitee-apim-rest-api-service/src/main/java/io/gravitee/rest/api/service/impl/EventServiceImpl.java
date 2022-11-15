@@ -17,7 +17,6 @@ package io.gravitee.rest.api.service.impl;
 
 import static io.gravitee.repository.management.model.Event.EventProperties.API_ID;
 import static io.gravitee.repository.management.model.Event.EventProperties.ID;
-import static io.gravitee.rest.api.model.PlanStatus.CLOSED;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.springframework.util.CollectionUtils.isEmpty;
@@ -25,7 +24,9 @@ import static org.springframework.util.CollectionUtils.isEmpty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.gravitee.common.data.domain.Page;
+import io.gravitee.definition.model.DefinitionVersion;
 import io.gravitee.definition.model.debug.DebugApi;
+import io.gravitee.definition.model.v4.plan.PlanStatus;
 import io.gravitee.repository.exceptions.TechnicalException;
 import io.gravitee.repository.management.api.EventRepository;
 import io.gravitee.repository.management.api.search.EventCriteria;
@@ -34,7 +35,13 @@ import io.gravitee.repository.management.model.Api;
 import io.gravitee.repository.management.model.Dictionary;
 import io.gravitee.repository.management.model.Event;
 import io.gravitee.repository.management.model.flow.FlowReferenceType;
-import io.gravitee.rest.api.model.*;
+import io.gravitee.rest.api.model.EventEntity;
+import io.gravitee.rest.api.model.EventQuery;
+import io.gravitee.rest.api.model.EventType;
+import io.gravitee.rest.api.model.NewEventEntity;
+import io.gravitee.rest.api.model.OrganizationEntity;
+import io.gravitee.rest.api.model.PlanEntity;
+import io.gravitee.rest.api.model.UserEntity;
 import io.gravitee.rest.api.service.EventService;
 import io.gravitee.rest.api.service.PlanService;
 import io.gravitee.rest.api.service.UserService;
@@ -45,15 +52,26 @@ import io.gravitee.rest.api.service.converter.PlanConverter;
 import io.gravitee.rest.api.service.exceptions.EventNotFoundException;
 import io.gravitee.rest.api.service.exceptions.TechnicalManagementException;
 import io.gravitee.rest.api.service.exceptions.UserNotFoundException;
+import io.gravitee.rest.api.service.v4.PlanSearchService;
+import io.gravitee.rest.api.service.v4.mapper.FlowMapper;
+import io.gravitee.rest.api.service.v4.mapper.PlanMapper;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -64,6 +82,7 @@ public class EventServiceImpl extends TransactionalService implements EventServi
 
     private final Logger LOGGER = LoggerFactory.getLogger(EventServiceImpl.class);
 
+    @Lazy
     @Autowired
     private EventRepository eventRepository;
 
@@ -74,7 +93,16 @@ public class EventServiceImpl extends TransactionalService implements EventServi
     private PlanService planService;
 
     @Autowired
+    private io.gravitee.rest.api.service.v4.PlanService planServiceV4;
+
+    @Autowired
     private FlowService flowService;
+
+    @Autowired
+    private PlanMapper planMapper;
+
+    @Autowired
+    private io.gravitee.rest.api.service.v4.FlowService flowServiceV4;
 
     @Autowired
     private PlanConverter planConverter;
@@ -371,7 +399,11 @@ public class EventServiceImpl extends TransactionalService implements EventServi
     private Api buildApiEventPayload(ExecutionContext executionContext, Api api) {
         try {
             Api apiForGatewayEvent = new Api(api);
-            apiForGatewayEvent.setDefinition(objectMapper.writeValueAsString(buildGatewayApiDefinition(executionContext, api)));
+            if (api.getDefinitionVersion() == null || !api.getDefinitionVersion().equals(DefinitionVersion.V4)) {
+                apiForGatewayEvent.setDefinition(objectMapper.writeValueAsString(buildGatewayApiDefinition(executionContext, api)));
+            } else {
+                apiForGatewayEvent.setDefinition(objectMapper.writeValueAsString(buildGatewayApiDefinitionV4(executionContext, api)));
+            }
             return apiForGatewayEvent;
         } catch (JsonProcessingException e) {
             throw new TechnicalManagementException(String.format("Failed to build API [%s] definition for gateway event", api.getId()), e);
@@ -396,11 +428,37 @@ public class EventServiceImpl extends TransactionalService implements EventServi
         Set<PlanEntity> plans = planService
             .findByApi(executionContext, api.getId())
             .stream()
-            .filter(p -> p.getStatus() != CLOSED)
+            .filter(p -> p.getStatus() != io.gravitee.rest.api.model.PlanStatus.CLOSED)
             .collect(toSet());
 
         apiDefinition.setPlans(planConverter.toPlansDefinitions(plans));
         apiDefinition.setFlows(flowService.findByReference(FlowReferenceType.API, api.getId()));
         return apiDefinition;
+    }
+
+    /**
+     * Build gateway API definition for given Api.
+     *
+     * It reads API plans from plan collections, and API flows from flow collection ;
+     * And generates gateway API definition from management API definition (containing no plans or flows).
+     *
+     * @param executionContext
+     * @param api
+     * @return API definition
+     * @throws JsonProcessingException
+     */
+    private io.gravitee.definition.model.v4.Api buildGatewayApiDefinitionV4(ExecutionContext executionContext, Api api)
+        throws JsonProcessingException {
+        var apiDefinitionV4 = objectMapper.readValue(api.getDefinition(), io.gravitee.definition.model.v4.Api.class);
+
+        Set<io.gravitee.rest.api.model.v4.plan.PlanEntity> plans = planServiceV4
+            .findByApi(executionContext, api.getId())
+            .stream()
+            .filter(p -> p.getPlanStatus() != PlanStatus.CLOSED)
+            .collect(toSet());
+
+        apiDefinitionV4.setPlans(planMapper.toDefinitions(plans));
+        apiDefinitionV4.setFlows(flowServiceV4.findByReference(FlowReferenceType.API, api.getId()));
+        return apiDefinitionV4;
     }
 }

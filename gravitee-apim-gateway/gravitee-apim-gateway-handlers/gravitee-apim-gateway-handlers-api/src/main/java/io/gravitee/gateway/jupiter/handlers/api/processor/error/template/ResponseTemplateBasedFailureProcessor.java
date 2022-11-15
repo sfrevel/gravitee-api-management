@@ -17,15 +17,16 @@ package io.gravitee.gateway.jupiter.handlers.api.processor.error.template;
 
 import io.gravitee.common.http.HttpHeadersValues;
 import io.gravitee.common.http.MediaType;
-import io.gravitee.definition.model.Api;
 import io.gravitee.definition.model.ResponseTemplate;
+import io.gravitee.el.TemplateEngine;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.jupiter.api.ExecutionFailure;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.api.el.EvaluableRequest;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
 import io.gravitee.gateway.jupiter.handlers.api.processor.error.AbstractFailureProcessor;
-import io.reactivex.Completable;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Single;
 import java.util.List;
 import java.util.Map;
 
@@ -54,10 +55,9 @@ public class ResponseTemplateBasedFailureProcessor extends AbstractFailureProces
     }
 
     @Override
-    protected Completable processFailure(final RequestExecutionContext ctx, final ExecutionFailure executionFailure) {
+    protected Completable processFailure(final HttpExecutionContext ctx, final ExecutionFailure executionFailure) {
         if (executionFailure.key() != null) {
-            Api api = ctx.getComponent(Api.class);
-            Map<String, Map<String, ResponseTemplate>> templates = api.getResponseTemplates();
+            Map<String, Map<String, ResponseTemplate>> templates = getResponseTemplate(ctx);
 
             Map<String, ResponseTemplate> responseTemplates = templates.get(executionFailure.key());
 
@@ -79,8 +79,18 @@ public class ResponseTemplateBasedFailureProcessor extends AbstractFailureProces
         }
     }
 
+    private Map<String, Map<String, ResponseTemplate>> getResponseTemplate(final HttpExecutionContext ctx) {
+        try {
+            io.gravitee.definition.model.v4.Api api = ctx.getComponent(io.gravitee.definition.model.v4.Api.class);
+            return api.getResponseTemplates();
+        } catch (Exception e) {
+            io.gravitee.definition.model.Api api = ctx.getComponent(io.gravitee.definition.model.Api.class);
+            return api.getResponseTemplates();
+        }
+    }
+
     private Completable handleAcceptHeader(
-        final RequestExecutionContext context,
+        final HttpExecutionContext context,
         final Map<String, ResponseTemplate> templates,
         final ExecutionFailure executionFailure
     ) {
@@ -108,7 +118,7 @@ public class ResponseTemplateBasedFailureProcessor extends AbstractFailureProces
     }
 
     private Completable handleWildcardTemplate(
-        final RequestExecutionContext context,
+        final HttpExecutionContext context,
         final Map<String, ResponseTemplate> templates,
         final ExecutionFailure executionFailure
     ) {
@@ -122,15 +132,16 @@ public class ResponseTemplateBasedFailureProcessor extends AbstractFailureProces
     }
 
     private Completable handleTemplate(
-        final RequestExecutionContext context,
+        final HttpExecutionContext context,
         final ResponseTemplate template,
         final ExecutionFailure executionFailure
     ) {
         context.response().status(template.getStatusCode());
+        context.response().reason(HttpResponseStatus.valueOf(template.getStatusCode()).reasonPhrase());
         context.response().headers().set(HttpHeaderNames.CONNECTION, HttpHeadersValues.CONNECTION_CLOSE);
 
         if (template.getBody() != null && !template.getBody().isEmpty()) {
-            context.response().headers().set(HttpHeaderNames.CONTENT_TYPE, context.request().headers().getFirst(HttpHeaderNames.ACCEPT));
+            context.response().headers().set(HttpHeaderNames.CONTENT_TYPE, context.request().headers().get(HttpHeaderNames.ACCEPT));
         }
 
         if (template.getHeaders() != null) {
@@ -139,18 +150,25 @@ public class ResponseTemplateBasedFailureProcessor extends AbstractFailureProces
 
         if (template.getBody() != null && !template.getBody().isEmpty()) {
             // Prepare templating context
-            context.getTemplateEngine().getTemplateContext().setVariable("error", new EvaluableExecutionFailure(executionFailure));
-            context.getTemplateEngine().getTemplateContext().setVariable("request", new EvaluableRequest(context.request()));
+            final TemplateEngine templateEngine = context.getTemplateEngine();
+            templateEngine.getTemplateContext().setVariable("error", new EvaluableExecutionFailure(executionFailure));
 
             if (executionFailure.parameters() != null && !executionFailure.parameters().isEmpty()) {
-                context.getTemplateEngine().getTemplateContext().setVariable("parameters", executionFailure.parameters());
+                templateEngine.getTemplateContext().setVariable("parameters", executionFailure.parameters());
             }
 
             // Apply templating
-            String body = context.getTemplateEngine().getValue(template.getBody(), String.class);
-            Buffer payload = Buffer.buffer(body);
-            context.response().headers().set(HttpHeaderNames.CONTENT_LENGTH, Integer.toString(payload.length()));
-            context.response().body(payload);
+            return templateEngine
+                .eval(template.getBody(), String.class)
+                .switchIfEmpty(Single.just(""))
+                .flatMapCompletable(
+                    body -> {
+                        Buffer payload = Buffer.buffer(body);
+                        context.response().headers().set(HttpHeaderNames.CONTENT_LENGTH, Integer.toString(payload.length()));
+                        context.response().body(payload);
+                        return Completable.complete();
+                    }
+                );
         }
         return Completable.complete();
     }

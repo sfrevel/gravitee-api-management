@@ -17,7 +17,7 @@ package io.gravitee.gateway.services.healthcheck.rule;
 
 import io.gravitee.definition.model.Endpoint;
 import io.gravitee.definition.model.services.healthcheck.HealthCheckService;
-import io.gravitee.definition.model.services.healthcheck.Step;
+import io.gravitee.definition.model.services.healthcheck.HealthCheckStep;
 import io.gravitee.gateway.handlers.api.definition.Api;
 import io.gravitee.gateway.services.healthcheck.EndpointRule;
 import io.vertx.core.net.ProxyOptions;
@@ -62,7 +62,7 @@ public abstract class AbstractEndpointRule<T extends Endpoint> implements Endpoi
     }
 
     @Override
-    public List<Step> steps() {
+    public List<HealthCheckStep> steps() {
         return service.getSteps();
     }
 

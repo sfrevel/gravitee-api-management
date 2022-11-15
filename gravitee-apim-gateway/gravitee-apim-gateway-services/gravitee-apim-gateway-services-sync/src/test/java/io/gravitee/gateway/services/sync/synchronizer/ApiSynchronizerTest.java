@@ -18,12 +18,22 @@ package io.gravitee.gateway.services.sync.synchronizer;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.gravitee.definition.model.DefinitionVersion;
 import io.gravitee.gateway.handlers.api.definition.Api;
 import io.gravitee.gateway.handlers.api.manager.ApiManager;
+import io.gravitee.gateway.reactor.ReactableApi;
 import io.gravitee.gateway.services.sync.builder.RepositoryApiBuilder;
 import io.gravitee.gateway.services.sync.cache.ApiKeysCacheService;
 import io.gravitee.gateway.services.sync.cache.SubscriptionsCacheService;
@@ -31,14 +41,26 @@ import io.gravitee.repository.management.api.EnvironmentRepository;
 import io.gravitee.repository.management.api.EventRepository;
 import io.gravitee.repository.management.api.OrganizationRepository;
 import io.gravitee.repository.management.api.PlanRepository;
-import io.gravitee.repository.management.model.*;
-import java.util.*;
+import io.gravitee.repository.management.model.Environment;
+import io.gravitee.repository.management.model.Event;
+import io.gravitee.repository.management.model.EventType;
+import io.gravitee.repository.management.model.Organization;
+import io.gravitee.repository.management.model.Plan;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import junit.framework.TestCase;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatcher;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -50,6 +72,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class ApiSynchronizerTest extends TestCase {
 
+    static final List<String> ENVIRONMENTS = Arrays.asList("DEFAULT", "OTHER_ENV");
     private static final String ENVIRONMENT_ID = "env#1";
     private static final String ORGANIZATION_ID = "orga#1";
     private static final String ENVIRONMENT_HRID = "default-env";
@@ -82,8 +105,6 @@ public class ApiSynchronizerTest extends TestCase {
 
     @Mock
     private ObjectMapper objectMapper;
-
-    static final List<String> ENVIRONMENTS = Arrays.asList("DEFAULT", "OTHER_ENV");
 
     @Before
     public void setUp() {
@@ -179,8 +200,28 @@ public class ApiSynchronizerTest extends TestCase {
 
         verify(apiManager, never()).unregister(any(String.class));
         verify(planRepository, never()).findByApis(anyList());
-        verify(apiKeysCacheService).register(singletonList(new Api(mockApi)));
-        verify(subscriptionsCacheService).register(singletonList(new Api(mockApi)));
+        verify(apiKeysCacheService)
+            .register(
+                argThat(
+                    new ArgumentMatcher<List<ReactableApi<?>>>() {
+                        @Override
+                        public boolean matches(List<ReactableApi<?>> reactableApis) {
+                            return reactableApis.size() == 1 && reactableApis.get(0).equals(new Api(mockApi));
+                        }
+                    }
+                )
+            );
+        verify(subscriptionsCacheService)
+            .register(
+                argThat(
+                    new ArgumentMatcher<List<ReactableApi<?>>>() {
+                        @Override
+                        public boolean matches(List<ReactableApi<?>> reactableApis) {
+                            return reactableApis.size() == 1 && reactableApis.get(0).equals(new Api(mockApi));
+                        }
+                    }
+                )
+            );
     }
 
     @Test
@@ -350,13 +391,20 @@ public class ApiSynchronizerTest extends TestCase {
             .thenReturn(singletonList(mockEvent));
 
         final Plan plan = new Plan();
+        plan.setId("planId");
         plan.setApi(mockApi.getId());
+        plan.setStatus(Plan.Status.PUBLISHED);
         when(planRepository.findByApis(anyList())).thenReturn(singletonList(plan));
         mockEnvironmentAndOrganization();
 
         apiSynchronizer.synchronize(System.currentTimeMillis() - 5000, System.currentTimeMillis(), ENVIRONMENTS);
 
-        verify(apiManager).register(new Api(mockApi));
+        ArgumentCaptor<Api> apiCaptor = ArgumentCaptor.forClass(Api.class);
+        verify(apiManager).register(apiCaptor.capture());
+        Api verifyApi = apiCaptor.getValue();
+        assertEquals(API_ID, verifyApi.getId());
+        assertEquals(verifyApi.getDefinition().getPlan("planId").getApi(), mockApi.getId());
+
         verify(apiManager, never()).unregister(any(String.class));
         verify(planRepository, times(1)).findByApis(anyList());
         verify(apiKeysCacheService).register(singletonList(new Api(mockApi)));

@@ -23,7 +23,6 @@ import io.gravitee.gateway.jupiter.reactor.processor.alert.AlertProcessor;
 import io.gravitee.gateway.jupiter.reactor.processor.forward.XForwardForProcessor;
 import io.gravitee.gateway.jupiter.reactor.processor.reporter.ReporterProcessor;
 import io.gravitee.gateway.jupiter.reactor.processor.responsetime.ResponseTimeProcessor;
-import io.gravitee.gateway.jupiter.reactor.processor.shutdown.ShutdownProcessor;
 import io.gravitee.gateway.jupiter.reactor.processor.transaction.TraceContextProcessor;
 import io.gravitee.gateway.jupiter.reactor.processor.transaction.TransactionProcessorFactory;
 import io.gravitee.gateway.report.ReporterService;
@@ -77,6 +76,12 @@ public class PlatformProcessorChainFactory {
     }
 
     private void initPreProcessorChain() {
+        List<Processor> preProcessorList = buildPreProcessorList();
+        preProcessorChain = new ProcessorChain("processor-chain-pre-platform", preProcessorList);
+        preProcessorChain.addHooks(processorHooks);
+    }
+
+    protected List<Processor> buildPreProcessorList() {
         List<Processor> preProcessorList = new ArrayList<>();
 
         preProcessorList.add(new XForwardForProcessor());
@@ -88,8 +93,7 @@ public class PlatformProcessorChainFactory {
         }
 
         preProcessorList.add(transactionHandlerFactory.create());
-        preProcessorChain = new ProcessorChain("processor-chain-post-platform", preProcessorList);
-        preProcessorChain.addHooks(processorHooks);
+        return preProcessorList;
     }
 
     public ProcessorChain postProcessorChain() {
@@ -100,16 +104,20 @@ public class PlatformProcessorChainFactory {
     }
 
     private void initPostProcessorChain() {
+        List<Processor> postProcessorList = buildPostProcessorList();
+
+        postProcessorChain = new ProcessorChain("processor-chain-post-platform", postProcessorList);
+        postProcessorChain.addHooks(processorHooks);
+    }
+
+    protected List<Processor> buildPostProcessorList() {
         List<Processor> postProcessorList = new ArrayList<>();
-        postProcessorList.add(new ShutdownProcessor(node));
         postProcessorList.add(new ResponseTimeProcessor());
         postProcessorList.add(new ReporterProcessor(reporterService));
 
         if (!eventProducer.isEmpty()) {
             postProcessorList.add(new AlertProcessor(eventProducer, node, port));
         }
-
-        postProcessorChain = new ProcessorChain("processor-chain-post-platform", postProcessorList);
-        postProcessorChain.addHooks(processorHooks);
+        return postProcessorList;
     }
 }

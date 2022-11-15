@@ -33,16 +33,12 @@ import AutofocusDirective from '../components/autofocus/autofocus.directive';
 import GvModelDirective from '../libraries/gv-model.directive';
 import { ApiService } from '../services/api.service';
 import CorsService from '../services/cors.service';
-import { ApisController } from './api/apis.controller';
 import ApisStatusDashboardController from '../management/dashboard/apis-status-dashboard/apis-status-dashboard.controller';
-import ApiPortalController from '../management/api/portal/general/apiPortal.controller';
 import ApiAdminController from '../management/api/apiAdmin.controller';
 import ApiAnalyticsController from '../management/api/analytics/overview/analytics.controller';
 import ApiMembersController from '../management/api/portal/userGroupAccess/members/members.controller';
 import ApiTransferOwnershipController from '../management/api/portal/userGroupAccess/transferOwnership/transferOwnership.controller';
 import ApiPoliciesController from '../management/api/design/policies/policies.controller';
-import ApiEndpointController from '../management/api/proxy/backend/endpoint/endpointConfiguration.controller';
-import ApiEndpointGroupController from '../management/api/proxy/backend/endpoint/group.controller';
 import AddPoliciesPathController from '../management/api/design/policies/addPoliciesPath.controller';
 import ApiResourcesController from '../management/api/design/resources/resources.controller';
 import ApiPathMappingsController from '../management/api/analytics/pathMappings/pathMappings.controller';
@@ -71,13 +67,7 @@ import LoginController from '../user/login/login.controller';
 import { LogoutComponent } from '../user/logout/logout.component';
 
 import DiffDirective from '../components/diff/diff.directive';
-import DialogApiImportController from '../management/api/portal/general/dialog/apiImportDialog.controller';
-import DialogApiExportController from '../management/api/portal/general/dialog/apiExportDialog.controller';
-import DialogApiDuplicateController from '../management/api/portal/general/dialog/apiDuplicateDialog.controller';
-// Sidenav
-import SidenavService from '../components/sidenav/sidenav.service';
-import { SidenavComponent } from '../components/sidenav/sidenav.component';
-import { SubmenuComponent } from '../components/sidenav/submenu.component';
+// Navbar
 import { NavbarComponent } from '../components/navbar/navbar.component';
 // Api
 import ApiCreationComponent from '../management/api/creation/steps/api-creation.component';
@@ -87,7 +77,6 @@ import ApiCreationStep2Component from '../management/api/creation/steps/api-crea
 import ApiCreationStep3Component from '../management/api/creation/steps/api-creation-step3.component';
 import ApiCreationStep4Component from '../management/api/creation/steps/api-creation-step4.component';
 import ApiCreationStep5Component from '../management/api/creation/steps/api-creation-step5.component';
-import ApiImportComponent from '../components/import/import-api.component';
 import NewApiImportController from './api/creation/newApiImport.controller';
 import { ApiCreationGetStartedComponent } from './api/creation/api-creation-get-started.component';
 import DialogConfirmDeploymentController from '../management/api/deploy/confirmDeploymentDialog.controller';
@@ -137,13 +126,7 @@ import DialogTransferApplicationController from './application/details/members/t
 // Instances
 import InstancesService from '../services/instances.service';
 import InstancesController from '../management/instances/instances.controller';
-import InstanceHeaderComponent from '../management/instances/details/header/instance-header.component';
-import InstanceEnvironmentController from '../management/instances/details/environment/instance-environment.controller';
-import InstanceEnvironmentComponent from '../management/instances/details/environment/instance-environment.component';
-import InstanceMonitoringComponent from '../management/instances/details/monitoring/instance-monitoring.component';
-import InstanceMonitoringController from '../management/instances/details/monitoring/instance-monitoring.controller';
 import InstancesComponent from '../management/instances/instances.component';
-import InstanceComponent from '../management/instances/details/instance.component';
 // Analytics / widgets
 import WidgetComponent from '../components/widget/widget.component';
 import WidgetDataTableComponent from '../components/widget/table/widget-data-table.component';
@@ -244,7 +227,6 @@ import globalNotificationsRouterConfig from './configuration/notifications/globa
 import UserService from '../services/user.service';
 import UserController from '../user/user.controller';
 import UserComponent from '../user/user.component';
-import { submenuFilter } from '../components/sidenav/submenu.filter';
 // User Tasks
 import { TasksComponent } from './tasks/tasks.component';
 import { PromotionTaskComponent } from './tasks/promotion/promotion-task.component';
@@ -369,11 +351,6 @@ import EntrypointService from '../services/entrypoint.service';
 
 import SelectFolderDialogController from '../components/documentation/dialog/selectfolder.controller';
 import SelectPageDialogController from '../components/documentation/dialog/selectpage.controller';
-// API Response Templates
-import ApiResponseTemplatesController from '../management/api/proxy/general/response-templates/response-templates.controller';
-import ApiResponseTemplateController from '../management/api/proxy/general/response-templates/response-template.controller';
-import ApiResponseTemplateTypeComponent from '../management/api/proxy/general/response-templates/response-template-type.component';
-import ApiResponseTemplateComponent from '../management/api/proxy/general/response-templates/response-template.component';
 import AnalyticsSettingsComponent from './configuration/analytics/analytics.component';
 // Settings - Client Registration
 import ClientRegistrationProviderService from '../services/clientRegistrationProvider.service';
@@ -397,7 +374,7 @@ import UserAutocompleteComponent from '../components/user-autocomplete/user-auto
 import UserAutocompleteController from '../components/user-autocomplete/user-autocomplete.controller';
 
 import DialogReviewController from './api/review/reviewDialog.controller';
-import DialogRequestForChangesController from './api/portal/general/dialog/requestForChanges.controller';
+import DialogRequestForChangesController from './api/dialog/requestForChanges.controller';
 import ApplicationSubscribeComponent from './application/details/subscribe/application-subscribe.component';
 import ApplicationSubscribeController from './application/details/subscribe/application-subscribe.controller';
 import ApiKeyModeChoiceDialogController from '../components/dialog/apiKeyMode/api-key-mode-choice-dialog.controller';
@@ -532,6 +509,7 @@ import { OrgSettingsTagsComponent } from '../organization/configuration/tags/org
 import { OrgSettingsRoleMembersComponent } from '../organization/configuration/roles/org-settings-role-members.component';
 import { OrgSettingsRoleComponent } from '../organization/configuration/roles/role/org-settings-role.component';
 import DialogTransferOwnershipController from './configuration/groups/group/transferOwnershipDialog.controller';
+import { CockpitService } from '../services-ngx/cockpit.service';
 
 import { upgradeModule } from '@uirouter/angular-hybrid';
 import uiRouter from '@uirouter/angularjs';
@@ -545,6 +523,23 @@ import ApiKeysController from '../management/api-key/api-keys.controller';
 import { OrgSettingsAuditComponent } from '../organization/configuration/audit/org-settings-audit.component';
 import { EnvAuditComponent } from './audit/env-audit.component';
 import { EnvApplicationListComponent } from './application/list/env-application-list.component';
+import { ApiListComponent } from './api/list/api-list.component';
+import { ApiProxyEntrypointsComponent } from './api/proxy/entrypoints/api-proxy-entrypoints.component';
+import { ApiProxyEntrypointsContextPathComponent } from './api/proxy/entrypoints/context-path/api-proxy-entrypoints-context-path.component';
+import { ApiProxyEntrypointsVirtualHostComponent } from './api/proxy/entrypoints/virtual-host/api-proxy-entrypoints-virtual-host.component';
+import { ApiProxyCorsComponent } from './api/proxy/cors/api-proxy-cors.component';
+import { ApiProxyDeploymentsComponent } from './api/proxy/deployments/api-proxy-deployments.component';
+import { ApiProxyResponseTemplatesListComponent } from './api/proxy/response-templates/list/api-proxy-response-templates-list.component';
+import { ApiProxyResponseTemplatesEditComponent } from './api/proxy/response-templates/edit/api-proxy-response-templates-edit.component';
+import { ApiProxyEndpointListComponent } from './api/proxy/endpoints/list/api-proxy-endpoint-list.component';
+import { ApiPortalDetailsComponent } from './api/portal/details/api-portal-details.component';
+import { ApiProxyGroupEditComponent } from './api/proxy/endpoints/groups/edit/api-proxy-group-edit.component';
+import { ApiProxyGroupEndpointEditComponent } from './api/proxy/endpoints/groups/endpoint/edit/api-proxy-group-endpoint-edit.component';
+import { ApiProxyFailoverComponent } from './api/proxy/failover/api-proxy-failover.component';
+import { GioSideNavComponent } from '../components/gio-side-nav/gio-side-nav.component';
+import { SettingsNavigationComponent } from './configuration/settings-navigation/settings-navigation.component';
+import { ApplicationNavigationComponent } from './application/details/application-navigation/application-navigation.component';
+import { ApiNavigationComponent } from './api/api-navigation/api-navigation.component';
 
 (<any>window).moment = moment;
 require('angular-moment-picker');
@@ -657,30 +652,57 @@ graviteeManagementModule.config(($mdThemingProvider: angular.material.IThemingPr
 
   $mdThemingProvider.theme('default').primaryPalette('gravitee').accentPalette('gravitee').warnPalette('graviteeWarn');
 
-  $mdThemingProvider.theme('sidenav').backgroundPalette('grey', {
-    default: '50',
-  });
-
   $mdThemingProvider.theme('toast-success');
   $mdThemingProvider.theme('toast-error');
 });
 graviteeManagementModule.run(runBlock);
 
+// New Navigation components
+graviteeManagementModule.directive('gioSideNav', downgradeComponent({ component: GioSideNavComponent }));
+graviteeManagementModule.directive('settingsNavigation', downgradeComponent({ component: SettingsNavigationComponent }));
+graviteeManagementModule.directive('applicationNavigation', downgradeComponent({ component: ApplicationNavigationComponent }));
+graviteeManagementModule.directive('apiNavigation', downgradeComponent({ component: ApiNavigationComponent }));
+
+// Apis
+graviteeManagementModule.directive('ngApiList', downgradeComponent({ component: ApiListComponent }));
+graviteeManagementModule.directive('ngApiProxyEntrypoints', downgradeComponent({ component: ApiProxyEntrypointsComponent }));
+graviteeManagementModule.directive(
+  'ngApiProxyEntrypointsContextPath',
+  downgradeComponent({ component: ApiProxyEntrypointsContextPathComponent }),
+);
+graviteeManagementModule.directive(
+  'ngApiProxyEntrypointsVirtualHost',
+  downgradeComponent({ component: ApiProxyEntrypointsVirtualHostComponent }),
+);
+graviteeManagementModule.directive('ngApiProxyCors', downgradeComponent({ component: ApiProxyCorsComponent }));
+graviteeManagementModule.directive('ngApiProxyDeployments', downgradeComponent({ component: ApiProxyDeploymentsComponent }));
+graviteeManagementModule.directive(
+  'ngApiProxyResponseTemplatesList',
+  downgradeComponent({ component: ApiProxyResponseTemplatesListComponent }),
+);
+graviteeManagementModule.directive(
+  'ngApiProxyResponseTemplatesEdit',
+  downgradeComponent({ component: ApiProxyResponseTemplatesEditComponent }),
+);
+graviteeManagementModule.directive('ngApiProxyEndpointList', downgradeComponent({ component: ApiProxyEndpointListComponent }));
+graviteeManagementModule.directive('ngApiProxyGroupEdit', downgradeComponent({ component: ApiProxyGroupEditComponent }));
+graviteeManagementModule.directive('ngApiProxyGroupEndpointEdit', downgradeComponent({ component: ApiProxyGroupEndpointEditComponent }));
+graviteeManagementModule.directive('ngApiProxyFailover', downgradeComponent({ component: ApiProxyFailoverComponent }));
+
 // Pendo Analytics
 graviteeManagementModule.factory('ngGioPendoService', downgradeInjectable(GioPendoService));
-graviteeManagementModule.controller('ApisController', ApisController);
 graviteeManagementModule.controller('ApisStatusDashboardController', ApisStatusDashboardController);
+
 graviteeManagementModule.controller('ApiAdminController', ApiAdminController);
+graviteeManagementModule.directive('ngApiPortalDetails', downgradeComponent({ component: ApiPortalDetailsComponent }));
+
 graviteeManagementModule.controller('ApiAnalyticsController', ApiAnalyticsController);
 graviteeManagementModule.controller('ApiPoliciesController', ApiPoliciesController);
 graviteeManagementModule.controller('AddPoliciesPathController', AddPoliciesPathController);
 graviteeManagementModule.controller('ApiMembersController', ApiMembersController);
 graviteeManagementModule.controller('ApiTransferOwnershipController', ApiTransferOwnershipController);
-graviteeManagementModule.controller('ApiPortalController', ApiPortalController);
 graviteeManagementModule.controller('ApiProxyController', ApiProxyController);
 graviteeManagementModule.controller('ApiHealthCheckController', ApiHealthCheckController);
-graviteeManagementModule.controller('ApiEndpointController', ApiEndpointController);
-graviteeManagementModule.controller('ApiEndpointGroupController', ApiEndpointGroupController);
 graviteeManagementModule.controller('DialogAssertionInformationController', DialogAssertionInformationController);
 graviteeManagementModule.controller('ApiPropertiesController', ApiPropertiesController);
 graviteeManagementModule.controller('ApiEventsController', ApiEventsController);
@@ -694,14 +716,9 @@ graviteeManagementModule.controller('DialogAddMemberApiController', DialogAddMem
 graviteeManagementModule.controller('DialogTransferApiController', DialogTransferApiController);
 graviteeManagementModule.controller('DialogApiKeyExpirationController', DialogApiKeyExpirationController);
 graviteeManagementModule.controller('UserController', UserController);
-graviteeManagementModule.controller('DialogApiImportController', DialogApiImportController);
-graviteeManagementModule.controller('DialogApiExportController', DialogApiExportController);
-graviteeManagementModule.controller('DialogApiDuplicateController', DialogApiDuplicateController);
 graviteeManagementModule.controller('DialogEditPolicyController', DialogEditPolicyController);
 graviteeManagementModule.controller('LoginController', LoginController);
 graviteeManagementModule.controller('InstancesController', InstancesController);
-graviteeManagementModule.controller('InstanceEnvironmentController', InstanceEnvironmentController);
-graviteeManagementModule.controller('InstanceMonitoringController', InstanceMonitoringController);
 graviteeManagementModule.controller('AnalyticsDashboardController', AnalyticsDashboardController);
 graviteeManagementModule.controller('DashboardController', DashboardController);
 graviteeManagementModule.controller('HomeDashboardController', HomeDashboardController);
@@ -838,6 +855,8 @@ graviteeManagementModule.directive('ngRoleMembers', downgradeComponent({ compone
 graviteeManagementModule.component('theme', ThemeComponent);
 graviteeManagementModule.component('topApis', TopApisComponent);
 graviteeManagementModule.directive('ngCockpit', downgradeComponent({ component: OrgSettingsCockpitComponent }));
+graviteeManagementModule.factory('ngCockpitService', downgradeInjectable(CockpitService));
+
 graviteeManagementModule.directive('ngConsoleSettings', downgradeComponent({ component: OrgSettingsGeneralComponent }));
 graviteeManagementModule.component('portalSettings', PortalSettingsComponent);
 graviteeManagementModule.component('analyticsSettings', AnalyticsSettingsComponent);
@@ -848,10 +867,6 @@ graviteeManagementModule.directive('ngPlatformPolicies', downgradeComponent({ co
 graviteeManagementModule.directive('ngOrgSettingsAudit', downgradeComponent({ component: OrgSettingsAuditComponent }));
 
 graviteeManagementModule.component('instances', InstancesComponent);
-graviteeManagementModule.component('instance', InstanceComponent);
-graviteeManagementModule.component('instanceHeader', InstanceHeaderComponent);
-graviteeManagementModule.component('instanceEnvironment', InstanceEnvironmentComponent);
-graviteeManagementModule.component('instanceMonitoring', InstanceMonitoringComponent);
 
 graviteeManagementModule.component('apiCreation', ApiCreationComponent);
 graviteeManagementModule.controller('ApiCreationController', ApiCreationController);
@@ -862,7 +877,6 @@ graviteeManagementModule.component('apiCreationStep2', ApiCreationStep2Component
 graviteeManagementModule.component('apiCreationStep3', ApiCreationStep3Component);
 graviteeManagementModule.component('apiCreationStep4', ApiCreationStep4Component);
 graviteeManagementModule.component('apiCreationStep5', ApiCreationStep5Component);
-graviteeManagementModule.component('gvApiImport', ApiImportComponent);
 graviteeManagementModule.component('gvDashboard', DashboardComponent);
 graviteeManagementModule.component('gvDashboardFilter', DashboardFilterComponent);
 graviteeManagementModule.controller('DashboardFilterController', DashboardFilterController);
@@ -947,13 +961,8 @@ graviteeManagementModule.directive(
   downgradeComponent({ component: OrgSettingsNotificationTemplateComponent }),
 );
 
-graviteeManagementModule.component('gvSidenav', SidenavComponent);
-graviteeManagementModule.component('gvSubmenu', SubmenuComponent);
 graviteeManagementModule.component('logout', LogoutComponent);
 graviteeManagementModule.component('graviteeNavbar', NavbarComponent);
-
-graviteeManagementModule.filter('currentSubmenus', submenuFilter);
-graviteeManagementModule.service('SidenavService', SidenavService);
 
 graviteeManagementModule.controller('ApiLogsController', ApiLogsController);
 graviteeManagementModule.component('gvLogsTimeframe', LogsTimeframeComponent);
@@ -974,12 +983,6 @@ graviteeManagementModule.controller('ApiHealthCheckConfigureController', ApiHeal
 graviteeManagementModule.controller('ApiHealthCheckLogController', ApiHealthCheckLogController);
 graviteeManagementModule.component('progressBar', ProgressBarComponent);
 graviteeManagementModule.component('gvHealthcheckMetric', HealthCheckMetricComponent);
-
-// Response Templates
-graviteeManagementModule.controller('ApiResponseTemplatesController', ApiResponseTemplatesController);
-graviteeManagementModule.controller('ApiResponseTemplateController', ApiResponseTemplateController);
-graviteeManagementModule.component('gvResponseTemplateType', ApiResponseTemplateTypeComponent);
-graviteeManagementModule.component('gvResponseTemplate', ApiResponseTemplateComponent);
 
 // Configuration
 graviteeManagementModule.component('settings', SettingsComponent);

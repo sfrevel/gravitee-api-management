@@ -74,7 +74,7 @@ services:
       - storage
 
   gateway:
-    image: graviteeio/apim-gateway:${APIM_VERSION:-latest}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-gateway:${APIM_VERSION:-latest}
     container_name: gio_apim_gateway
     restart: always
     depends_on:
@@ -82,6 +82,7 @@ services:
       - elasticsearch
     volumes:
       - ./.logs/apim-gateway:/opt/graviteeio-gateway/logs
+      - ./.license:/opt/graviteeio-gateway/license
     environment:
       - gravitee_management_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
       - gravitee_ratelimit_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
@@ -91,7 +92,7 @@ services:
       - frontend
 
   management_api:
-    image: graviteeio/apim-management-api:${APIM_VERSION:-latest}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-management-api:${APIM_VERSION:-latest}
     container_name: gio_apim_management_api
     restart: always
     links:
@@ -102,6 +103,7 @@ services:
       - elasticsearch
     volumes:
       - ./.logs/apim-management-api:/opt/graviteeio-management-api/logs
+      - ./.license:/opt/graviteeio-management-api/license
     environment:
       - gravitee_management_mongodb_uri=mongodb://mongodb:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
       - gravitee_analytics_elasticsearch_endpoints_0=http://elasticsearch:9200
@@ -113,7 +115,7 @@ services:
       - frontend
 
   management_ui:
-    image: graviteeio/apim-management-ui:${APIM_VERSION:-latest}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-management-ui:${APIM_VERSION:-latest}
     container_name: gio_apim_management_ui
     restart: always
     depends_on:
@@ -127,7 +129,7 @@ services:
       - frontend
 
   portal_ui:
-    image: graviteeio/apim-portal-ui:${APIM_VERSION:-latest}
+    image: ${APIM_REGISTRY:-graviteeio}/apim-portal-ui:${APIM_VERSION:-latest}
     container_name: gio_apim_portal_ui
     restart: always
     depends_on:

@@ -41,12 +41,15 @@ import io.gravitee.rest.api.service.exceptions.ApiNotFoundException;
 import io.gravitee.rest.api.service.exceptions.TechnicalManagementException;
 import io.gravitee.rest.api.service.jackson.filter.ApiPermissionFilter;
 import io.gravitee.rest.api.service.notification.ApiHook;
+import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
+import io.gravitee.rest.api.service.v4.mapper.CategoryMapper;
 import java.util.*;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -101,7 +104,13 @@ public class ApiService_StopTest {
     private FlowService flowService;
 
     @Spy
-    private ApiConverter apiConverter;
+    private CategoryMapper categoryMapper = new CategoryMapper(mock(CategoryService.class));
+
+    @InjectMocks
+    private ApiConverter apiConverter = Mockito.spy(new ApiConverter());
+
+    @Mock
+    private PrimaryOwnerService primaryOwnerService;
 
     @Before
     public void setUp() throws TechnicalException {
@@ -109,18 +118,9 @@ public class ApiService_StopTest {
         objectMapper.setFilterProvider(
             new SimpleFilterProvider(Collections.singletonMap("apiMembershipTypeFilter", apiMembershipTypeFilter))
         );
-        UserEntity u = mock(UserEntity.class);
-        when(u.getId()).thenReturn("uid");
+        UserEntity u = new UserEntity();
         when(userService.findById(eq(GraviteeContext.getExecutionContext()), any())).thenReturn(u);
-        MembershipEntity po = mock(MembershipEntity.class);
-        when(
-            membershipService.getPrimaryOwner(
-                eq(GraviteeContext.getCurrentOrganization()),
-                eq(io.gravitee.rest.api.model.MembershipReferenceType.API),
-                anyString()
-            )
-        )
-            .thenReturn(po);
+        when(primaryOwnerService.getPrimaryOwner(any(), any())).thenReturn(new PrimaryOwnerEntity(u));
         when(api.getId()).thenReturn(API_ID);
     }
 

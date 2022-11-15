@@ -17,17 +17,32 @@ package io.gravitee.apim.gateway.tests.sdk.policy;
 
 import io.gravitee.gateway.api.Request;
 import io.gravitee.gateway.api.Response;
+import io.gravitee.gateway.jupiter.api.context.GenericExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.gravitee.gateway.jupiter.api.policy.SecurityPolicy;
+import io.gravitee.gateway.jupiter.api.policy.SecurityToken;
 import io.gravitee.policy.api.PolicyChain;
 import io.gravitee.policy.api.annotations.OnRequest;
+import io.reactivex.rxjava3.core.Maybe;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class KeylessPolicy {
+public class KeylessPolicy implements SecurityPolicy {
 
     @OnRequest
     public void onRequest(Request request, Response response, PolicyChain policyChain) {
         policyChain.doNext(request, response);
+    }
+
+    @Override
+    public String id() {
+        return "keyless";
+    }
+
+    @Override
+    public Maybe<SecurityToken> extractSecurityToken(HttpExecutionContext ctx) {
+        return Maybe.just(SecurityToken.none());
     }
 }

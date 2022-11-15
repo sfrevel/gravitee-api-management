@@ -27,11 +27,13 @@ import io.gravitee.repository.management.model.NotificationReferenceType;
 import io.gravitee.rest.api.exception.InvalidImageException;
 import io.gravitee.rest.api.management.rest.resource.param.LifecycleAction;
 import io.gravitee.rest.api.management.rest.resource.param.ReviewAction;
+import io.gravitee.rest.api.management.rest.resource.param.kubernetes.v1alpha1.ApiExportParam;
 import io.gravitee.rest.api.management.rest.security.Permission;
 import io.gravitee.rest.api.management.rest.security.Permissions;
 import io.gravitee.rest.api.model.*;
 import io.gravitee.rest.api.model.api.*;
 import io.gravitee.rest.api.model.api.header.ApiHeaderEntity;
+import io.gravitee.rest.api.model.kubernetes.v1alpha1.ApiExportQuery;
 import io.gravitee.rest.api.model.notification.NotifierEntity;
 import io.gravitee.rest.api.model.parameters.Key;
 import io.gravitee.rest.api.model.parameters.ParameterReferenceType;
@@ -55,7 +57,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
@@ -63,8 +64,6 @@ import javax.ws.rs.*;
 import javax.ws.rs.container.ResourceContext;
 import javax.ws.rs.core.*;
 import javax.ws.rs.core.Response.Status;
-import org.glassfish.jersey.message.internal.HttpHeaderReader;
-import org.glassfish.jersey.message.internal.MatchingEntityTag;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
@@ -277,7 +276,7 @@ public class ApiResource extends AbstractResource {
             ImageUtils.verify(apiToUpdate.getPicture());
             ImageUtils.verify(apiToUpdate.getBackground());
         } catch (InvalidImageException e) {
-            throw new BadRequestException("Invalid image format");
+            throw new BadRequestException("Invalid image format : " + e.getMessage());
         }
 
         final ApiEntity currentApi = (ApiEntity) responseApi.getEntity();
@@ -305,35 +304,13 @@ public class ApiResource extends AbstractResource {
             .build();
     }
 
-    private Response.ResponseBuilder evaluateIfMatch(final HttpHeaders headers, final String etagValue) {
-        String ifMatch = headers.getHeaderString(HttpHeaders.IF_MATCH);
-        if (ifMatch == null || ifMatch.isEmpty()) {
-            return null;
-        }
-
-        // Handle case for -gzip appended automatically (and sadly) by Apache
-        ifMatch = ifMatch.replaceAll("-gzip", "");
-
-        try {
-            Set<MatchingEntityTag> matchingTags = HttpHeaderReader.readMatchingEntityTag(ifMatch);
-            MatchingEntityTag ifMatchHeader = matchingTags.iterator().next();
-            EntityTag eTag = new EntityTag(etagValue, ifMatchHeader.isWeak());
-
-            return matchingTags != MatchingEntityTag.ANY_MATCH && !matchingTags.contains(eTag)
-                ? Response.status(Status.PRECONDITION_FAILED)
-                : null;
-        } catch (java.text.ParseException e) {
-            return null;
-        }
-    }
-
     @DELETE
     @Operation(summary = "Delete the API", description = "User must have the DELETE permission to use this service")
     @ApiResponse(responseCode = "204", description = "API successfully deleted")
     @ApiResponse(responseCode = "500", description = "Internal server error")
     @Permissions({ @Permission(value = RolePermission.API_DEFINITION, acls = RolePermissionAction.DELETE) })
-    public Response deleteApi() {
-        apiService.delete(GraviteeContext.getExecutionContext(), api);
+    public Response deleteApi(@QueryParam("closePlans") boolean closePlans) {
+        apiService.delete(GraviteeContext.getExecutionContext(), api, closePlans);
 
         return Response.noContent().build();
     }
@@ -619,7 +596,39 @@ public class ApiResource extends AbstractResource {
         final String apiDefinition = apiExportService.exportAsJson(executionContext, api, version, exclude.split(","));
         return Response
             .ok(apiDefinition)
-            .header(HttpHeaders.CONTENT_DISPOSITION, format("attachment;filename=%s", getExportFilename(apiEntity)))
+            .header(HttpHeaders.CONTENT_DISPOSITION, format("attachment;filename=%s", getExportFilename(apiEntity, "json")))
+            .build();
+    }
+
+    @GET
+    @Produces("application/yaml")
+    @Path("crd")
+    @Operation(
+        summary = "Export the API definition in a GKO CRD format",
+        description = "User must have the MANAGE_API permission to use this service"
+    )
+    @ApiResponse(responseCode = "200", description = "API definition", content = @Content(mediaType = "application/yaml"))
+    @ApiResponse(responseCode = "500", description = "Internal server error")
+    @Permissions({ @Permission(value = RolePermission.API_DEFINITION, acls = RolePermissionAction.READ) })
+    public Response exportApiCRD(@Parameter @BeanParam ApiExportParam exportParams) {
+        final ExecutionContext executionContext = GraviteeContext.getExecutionContext();
+        final ApiEntity apiEntity = apiService.findById(executionContext, api);
+
+        final ApiExportQuery exportQuery = ApiExportQuery
+            .builder()
+            .removeIds(exportParams.isRemoveIds())
+            .contextPath(exportParams.getContextPath())
+            .version(exportParams.getVersion())
+            .contextRefName(exportParams.getManagementContextName())
+            .contextRefNamespace(exportParams.getManagementContextNamespace())
+            .exclude(exportParams.getExclude())
+            .build();
+
+        final String apiDefinition = apiExportService.exportAsCustomResourceDefinition(executionContext, apiEntity.getId(), exportQuery);
+
+        return Response
+            .ok(apiDefinition)
+            .header(HttpHeaders.CONTENT_DISPOSITION, format("attachment;filename=%s", getExportFilename(apiEntity, "yml")))
             .build();
     }
 
@@ -964,8 +973,8 @@ public class ApiResource extends AbstractResource {
         }
     }
 
-    private String getExportFilename(ApiEntity apiEntity) {
-        return format("%s-%s.json", apiEntity.getName(), apiEntity.getVersion())
+    private String getExportFilename(ApiEntity apiEntity, String extension) {
+        return format("%s-%s.%s", apiEntity.getName(), apiEntity.getVersion(), extension)
             .trim()
             .toLowerCase()
             .replaceAll(" +", " ")

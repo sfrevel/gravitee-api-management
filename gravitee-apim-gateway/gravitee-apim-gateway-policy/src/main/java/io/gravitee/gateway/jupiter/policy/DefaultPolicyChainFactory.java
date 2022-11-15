@@ -15,9 +15,9 @@
  */
 package io.gravitee.gateway.jupiter.policy;
 
-import static io.gravitee.gateway.jupiter.api.ExecutionPhase.ASYNC_REQUEST;
-import static io.gravitee.gateway.jupiter.api.ExecutionPhase.REQUEST;
+import static io.gravitee.gateway.jupiter.api.ExecutionPhase.*;
 
+import io.gravitee.definition.model.ExecutionMode;
 import io.gravitee.definition.model.flow.Flow;
 import io.gravitee.definition.model.flow.Step;
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
@@ -47,11 +47,11 @@ public class DefaultPolicyChainFactory implements PolicyChainFactory {
     public static final long CACHE_MAX_SIZE = 15;
     public static final long CACHE_TIME_TO_IDLE = 3600;
     private static final String ID_SEPARATOR = "-";
+    protected final List<Hook> policyHooks = new ArrayList<>();
     private final PolicyManager policyManager;
     private final Cache<String, PolicyChain> policyChains;
-    private final List<Hook> policyHooks = new ArrayList<>();
 
-    public DefaultPolicyChainFactory(final String id, final Configuration configuration, final PolicyManager policyManager) {
+    public DefaultPolicyChainFactory(final String id, final PolicyManager policyManager, final Configuration configuration) {
         this.policyManager = policyManager;
 
         final CacheConfiguration cacheConfiguration = new CacheConfiguration();
@@ -86,7 +86,7 @@ public class DefaultPolicyChainFactory implements PolicyChainFactory {
             final List<Policy> policies = steps
                 .stream()
                 .filter(Step::isEnabled)
-                .map(step -> new PolicyMetadata(step.getPolicy(), step.getConfiguration(), step.getCondition()))
+                .map(this::buildPolicyMetadata)
                 .map(policyMetadata -> policyManager.create(phase, policyMetadata))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -100,12 +100,19 @@ public class DefaultPolicyChainFactory implements PolicyChainFactory {
         return policyChain;
     }
 
-    private List<Step> getSteps(Flow flow, ExecutionPhase phase) {
-        final List<Step> steps;
+    private PolicyMetadata buildPolicyMetadata(Step step) {
+        final PolicyMetadata policyMetadata = new PolicyMetadata(step.getPolicy(), step.getConfiguration(), step.getCondition());
+        policyMetadata.metadata().put(PolicyMetadata.MetadataKeys.EXECUTION_MODE, ExecutionMode.JUPITER);
 
-        if (phase == REQUEST || phase == ASYNC_REQUEST) {
+        return policyMetadata;
+    }
+
+    private List<Step> getSteps(Flow flow, ExecutionPhase phase) {
+        List<Step> steps = null;
+
+        if (phase == REQUEST) {
             steps = flow.getPre();
-        } else {
+        } else if (phase == RESPONSE) {
             steps = flow.getPost();
         }
 

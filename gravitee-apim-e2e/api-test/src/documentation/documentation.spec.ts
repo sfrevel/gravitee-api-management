@@ -14,23 +14,27 @@
  * limitations under the License.
  */
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
-import faker from '@faker-js/faker';
-import { ConfigurationApi } from '@management-apis/ConfigurationApi';
-import { forManagementAsAdminUser, forManagementAsApiUser, forPortalAsApplicationFrenchUser, forPortalAsSimpleUser } from '@client-conf/*';
-import { UsersApi } from '@management-apis/UsersApi';
-import { RoleScope } from '@management-models/RoleScope';
-import { APIsApi } from '@management-apis/APIsApi';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { ApiLifecycleState } from '@management-models/ApiLifecycleState';
-import { Visibility } from '@management-models/Visibility';
-import { APIPagesApi } from '@management-apis/APIPagesApi';
+import { ConfigurationApi } from '@gravitee/management-webclient-sdk/src/lib/apis/ConfigurationApi';
+import {
+  forManagementAsAdminUser,
+  forManagementAsApiUser,
+  forPortalAsApplicationFrenchUser,
+  forPortalAsSimpleUser,
+} from '@gravitee/utils/configuration';
+import { UsersApi } from '@gravitee/management-webclient-sdk/src/lib/apis/UsersApi';
+import { RoleScope } from '@gravitee/management-webclient-sdk/src/lib/models/RoleScope';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { ApiLifecycleState } from '@gravitee/management-webclient-sdk/src/lib/models/ApiLifecycleState';
+import { Visibility } from '@gravitee/management-webclient-sdk/src/lib/models/Visibility';
+import { APIPagesApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIPagesApi';
 import { created, succeed, unauthorized } from '@lib/jest-utils';
-import { PageType } from '@management-models/PageType';
-import { ApiApi, GetPageByApiIdAndPageIdIncludeEnum } from '@portal-apis/ApiApi';
-import { MetadataFormat } from '@management-models/MetadataFormat';
-import { APIMetadataApi } from '@management-apis/APIMetadataApi';
-import { UpdateApiEntityFromJSON } from '@management-models/UpdateApiEntity';
-import { GroupsFaker } from '@management-fakers/GroupsFaker';
+import { PageType } from '@gravitee/management-webclient-sdk/src/lib/models/PageType';
+import { ApiApi, GetPageByApiIdAndPageIdIncludeEnum } from '@gravitee/portal-webclient-sdk/src/lib/apis/ApiApi';
+import { MetadataFormat } from '@gravitee/management-webclient-sdk/src/lib/models/MetadataFormat';
+import { APIMetadataApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIMetadataApi';
+import { UpdateApiEntityFromJSON } from '@gravitee/management-webclient-sdk/src/lib/models/UpdateApiEntity';
+import { GroupsFaker } from '@gravitee/fixtures/management/GroupsFaker';
 
 const orgId = 'DEFAULT';
 const envId = 'DEFAULT';
@@ -130,10 +134,30 @@ describe('Documentation', () => {
       envId,
     });
     await configurationManagementApiAsAdminUser.deleteGroupRaw({ orgId, envId, group: createdReaderGroup.id });
-    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({ orgId, envId, api: createdApi.id, page: createdPageMetadata.id });
-    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({ orgId, envId, api: createdApi.id, page: pageOutsideFolder.id });
-    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({ orgId, envId, api: createdApi.id, page: pageInFolder.id });
-    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({ orgId, envId, api: createdApi.id, page: createdFolder.id });
+    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({
+      orgId,
+      envId,
+      api: createdApi.id,
+      page: createdPageMetadata.id,
+    });
+    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({
+      orgId,
+      envId,
+      api: createdApi.id,
+      page: pageOutsideFolder.id,
+    });
+    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({
+      orgId,
+      envId,
+      api: createdApi.id,
+      page: pageInFolder.id,
+    });
+    await apiPagesManagementApiAsApiUser.deleteApiPageRaw({
+      orgId,
+      envId,
+      api: createdApi.id,
+      page: createdFolder.id,
+    });
     await apiPagesManagementApiAsApiUser.deleteApiPageRaw({ orgId, envId, api: createdApi.id, page: createdLink.id });
     await apiPagesManagementApiAsApiUser.deleteApiPageRaw({ orgId, envId, api: createdApi.id, page: createdPage.id });
     await apiPagesManagementApiAsApiUser.deleteApiPageRaw({ orgId, envId, api: createdApi.id, page: homepage.id });
@@ -182,12 +206,18 @@ describe('Documentation', () => {
 
     describe('Check documentation on portal', () => {
       test('Get homepage empty result', async () => {
-        const pages = await apiPortalAsApplicationFrenchUser.getPagesByApiId({ apiId: createdApi.id, homepage: true });
+        const pages = await apiPortalAsApplicationFrenchUser.getPagesByApiId({
+          apiId: createdApi.id,
+          homepage: true,
+        });
         expect(pages.data).toHaveLength(0);
       });
 
       test('Get pages empty result', async () => {
-        const pages = await apiPortalAsApplicationFrenchUser.getPagesByApiId({ apiId: createdApi.id, homepage: false });
+        const pages = await apiPortalAsApplicationFrenchUser.getPagesByApiId({
+          apiId: createdApi.id,
+          homepage: false,
+        });
         expect(pages.data).toHaveLength(0);
       });
     });
@@ -560,9 +590,14 @@ describe('Documentation', () => {
     let asideFolder;
     test('Get pages contains aside createdFolder', async () => {
       const systemFolders = await succeed(
-        apiPagesManagementApiAsApiUser.getApiPagesRaw({ orgId, envId, api: createdApi.id, type: PageType.SYSTEMFOLDER }),
+        apiPagesManagementApiAsApiUser.getApiPagesRaw({
+          orgId,
+          envId,
+          api: createdApi.id,
+          type: PageType.SYSTEM_FOLDER,
+        }),
       );
-      asideFolder = systemFolders.find((systemFolder) => systemFolder.name === 'Aside' && systemFolder.type === PageType.SYSTEMFOLDER);
+      asideFolder = systemFolders.find((systemFolder) => systemFolder.name === 'Aside' && systemFolder.type === PageType.SYSTEM_FOLDER);
       expect(asideFolder).toBeDefined();
     });
     test('Add aside link to existing createdPage', async () => {

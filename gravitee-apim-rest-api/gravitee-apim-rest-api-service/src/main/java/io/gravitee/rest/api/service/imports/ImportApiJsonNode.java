@@ -19,6 +19,7 @@ import static java.util.stream.Collectors.toList;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import io.swagger.util.Json;
 import java.util.List;
 
 public class ImportApiJsonNode extends ImportJsonNodeWithIds {
@@ -29,6 +30,9 @@ public class ImportApiJsonNode extends ImportJsonNodeWithIds {
     public static final String VIEWS = "views";
     public static final String API_MEDIA = "apiMedia";
     public static final String MEMBERS = "members";
+    public static final String DEFINITION_CONTEXT = "definition_context";
+
+    public static final String DEFINITION_CONTEXT_ORIGIN = "origin";
 
     public ImportApiJsonNode(JsonNode jsonNode) {
         super(jsonNode);
@@ -44,6 +48,18 @@ public class ImportApiJsonNode extends ImportJsonNodeWithIds {
 
     public boolean hasPages() {
         return hasArray(PAGES);
+    }
+
+    public boolean hasDefinitionContext() {
+        return getJsonNode().hasNonNull(DEFINITION_CONTEXT);
+    }
+
+    public JsonNode getDefinitionContext() {
+        return getJsonNode().get(DEFINITION_CONTEXT);
+    }
+
+    public String getDefinitionContextOrigin() {
+        return getJsonNode().findPath(DEFINITION_CONTEXT).findPath(DEFINITION_CONTEXT_ORIGIN).asText();
     }
 
     public List<ImportJsonNodeWithIds> getPages() {

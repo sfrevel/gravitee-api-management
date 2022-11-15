@@ -15,10 +15,7 @@
  */
 import { ApiService } from '../../../services/api.service';
 import EnvironmentService from '../../../services/environment.service';
-import ServiceDiscoveryService from '../../../services/serviceDiscovery.service';
 import SpelService from '../../../services/spel.service';
-import TenantService from '../../../services/tenant.service';
-import ConnectorService from '../../../services/connector.service';
 
 export default apisProxyRouterConfig;
 
@@ -26,24 +23,15 @@ function apisProxyRouterConfig($stateProvider) {
   'ngInject';
   $stateProvider
     .state('management.apis.detail.proxy', {
-      template: require('./apis.proxy.route.html'),
       resolve: {
         resolvedCurrentEnvironment: (EnvironmentService: EnvironmentService) => EnvironmentService.getCurrent(),
       },
     })
-    .state('management.apis.detail.proxy.entrypoints', {
+    .state('management.apis.detail.proxy.ng-entrypoints', {
       url: '/proxy',
-      template: require('./general/apiProxyEntrypoints.html'),
-      controller: 'ApiProxyController',
-      controllerAs: 'apiProxyCtrl',
-      resolve: {
-        resolvedTenants: (TenantService: TenantService) => TenantService.list(),
-      },
+      component: 'ngApiProxyEntrypoints',
       data: {
-        menu: {
-          label: 'Proxy',
-          icon: 'device_hub',
-        },
+        useAngularMaterial: true,
         perms: {
           only: ['api-definition-r', 'api-health-r'],
         },
@@ -52,12 +40,11 @@ function apisProxyRouterConfig($stateProvider) {
         },
       },
     })
-    .state('management.apis.detail.proxy.cors', {
+    .state('management.apis.detail.proxy.ng-cors', {
       url: '/cors',
-      template: require('./general/apiProxyCORS.html'),
-      controller: 'ApiProxyController',
-      controllerAs: 'apiProxyCtrl',
+      component: 'ngApiProxyCors',
       data: {
+        useAngularMaterial: true,
         perms: {
           only: ['api-definition-r'],
         },
@@ -66,12 +53,11 @@ function apisProxyRouterConfig($stateProvider) {
         },
       },
     })
-    .state('management.apis.detail.proxy.deployments', {
+    .state('management.apis.detail.proxy.ng-deployments', {
       url: '/deployments',
-      template: require('./general/apiProxyDeployments.html'),
-      controller: 'ApiProxyController',
-      controllerAs: 'apiProxyCtrl',
+      component: 'ngApiProxyDeployments',
       data: {
+        useAngularMaterial: true,
         perms: {
           only: ['api-definition-r'],
         },
@@ -82,45 +68,35 @@ function apisProxyRouterConfig($stateProvider) {
     })
     .state('management.apis.detail.proxy.failover', {
       url: '/failover',
-      template: require('./backend/failover/apiProxyFailover.html'),
-      controller: 'ApiProxyController',
-      controllerAs: 'apiProxyCtrl',
+      component: 'ngApiProxyFailover',
       data: {
+        useAngularMaterial: true,
         perms: {
           only: ['api-definition-r'],
         },
         docs: {
-          page: 'management-api-proxy',
+          page: 'management-api-proxy-failover',
         },
       },
     })
     .state('management.apis.detail.proxy.endpoints', {
       url: '/endpoints',
-      template: require('./backend/endpoint/apiEndpoints.html'),
-      controller: 'ApiProxyController',
-      controllerAs: 'apiProxyCtrl',
-      resolve: {
-        resolvedTenants: (TenantService: TenantService) => TenantService.list(),
-      },
+      component: 'ngApiProxyEndpointList',
       data: {
+        useAngularMaterial: true,
         perms: {
           only: ['api-definition-r'],
         },
         docs: {
-          page: 'management-api-proxy-endpoints',
+          page: 'management-api-proxy-endpoint',
         },
       },
     })
     .state('management.apis.detail.proxy.endpoint', {
-      url: '/groups/:groupName/endpoints/:endpointName',
-      template: require('./backend/endpoint/endpointConfiguration.html'),
-      controller: 'ApiEndpointController',
-      controllerAs: 'endpointCtrl',
-      resolve: {
-        resolvedTenants: (TenantService: TenantService) => TenantService.list(),
-        resolvedConnectors: (ConnectorService: ConnectorService) => ConnectorService.list(true),
-      },
+      url: '/ng-groups/:groupName/ng-endpoints/:endpointName',
+      component: 'ngApiProxyGroupEndpointEdit',
       data: {
+        useAngularMaterial: true,
         perms: {
           only: ['api-definition-r'],
         },
@@ -130,15 +106,10 @@ function apisProxyRouterConfig($stateProvider) {
       },
     })
     .state('management.apis.detail.proxy.group', {
-      url: '/groups/:groupName',
-      template: require('./backend/endpoint/group.html'),
-      controller: 'ApiEndpointGroupController',
-      controllerAs: 'groupCtrl',
-      resolve: {
-        resolvedServicesDiscovery: (ServiceDiscoveryService: ServiceDiscoveryService) => ServiceDiscoveryService.list(),
-        resolvedConnectors: (ConnectorService: ConnectorService) => ConnectorService.list(true),
-      },
+      url: '/ng-groups/:groupName',
+      component: 'ngApiProxyGroupEdit',
       data: {
+        useAngularMaterial: true,
         perms: {
           only: ['api-definition-r'],
         },
@@ -153,7 +124,6 @@ function apisProxyRouterConfig($stateProvider) {
       controller: 'ApiHealthCheckConfigureController',
       controllerAs: 'healthCheckCtrl',
       data: {
-        menu: null,
         perms: {
           only: ['api-health-c'],
         },
@@ -208,7 +178,6 @@ function apisProxyRouterConfig($stateProvider) {
       controller: 'ApiHealthCheckConfigureController',
       controllerAs: 'healthCheckCtrl',
       data: {
-        menu: null,
         perms: {
           only: ['api-health-c'],
         },
@@ -248,16 +217,15 @@ function apisProxyRouterConfig($stateProvider) {
         },
       },
     })
-    .state('management.apis.detail.proxy.responsetemplates', {
-      url: '/responsetemplates',
+    .state('management.apis.detail.proxy.ng-responsetemplates', {
       abstract: true,
+      url: '/responsetemplates',
     })
-    .state('management.apis.detail.proxy.responsetemplates.list', {
-      url: '/',
-      template: require('./general/response-templates/response-templates.html'),
-      controller: 'ApiResponseTemplatesController',
-      controllerAs: 'ctrl',
+    .state('management.apis.detail.proxy.ng-responsetemplates.list', {
+      url: '',
+      component: 'ngApiProxyResponseTemplatesList',
       data: {
+        useAngularMaterial: true,
         perms: {
           only: ['api-response_templates-r'],
         },
@@ -266,24 +234,26 @@ function apisProxyRouterConfig($stateProvider) {
         },
       },
     })
-    .state('management.apis.detail.proxy.responsetemplates.new', {
-      url: '/new',
-      component: 'gvResponseTemplate',
+    .state('management.apis.detail.proxy.ng-responsetemplates.new', {
+      url: '/',
+      component: 'ngApiProxyResponseTemplatesEdit',
       data: {
+        useAngularMaterial: true,
         perms: {
-          only: ['api-response_templates-c'],
+          only: ['api-response_templates-c', 'api-response_templates-r', 'api-response_templates-u'],
         },
         docs: {
           page: 'management-api-proxy-response-template',
         },
       },
     })
-    .state('management.apis.detail.proxy.responsetemplates.edit', {
-      url: '/:key',
-      component: 'gvResponseTemplate',
+    .state('management.apis.detail.proxy.ng-responsetemplates.edit', {
+      url: '/:responseTemplateId',
+      component: 'ngApiProxyResponseTemplatesEdit',
       data: {
+        useAngularMaterial: true,
         perms: {
-          only: ['api-response_templates-r', 'api-response_templates-u'],
+          only: ['api-response_templates-c', 'api-response_templates-r', 'api-response_templates-u'],
         },
         docs: {
           page: 'management-api-proxy-response-template',

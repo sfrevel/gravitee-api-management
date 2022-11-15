@@ -1,0 +1,29 @@
+databaseChangeLog:
+  - changeSet:
+      id: 3.20.0
+      author: GraviteeSource Team
+      changes:
+        # ################
+        # Apis v4 Changes
+        # ################
+        - createTable:
+            tableName: ${gravitee_prefix}flow_selector_channel_entrypoints
+            columns:
+              - column: { name: flow_id, type: nvarchar(64), constraints: { nullable: false } }
+              - column: { name: channel_entrypoint, type: nvarchar(32), constraints: { nullable: false } }
+        - addPrimaryKey:
+            constraintName: pk_${gravitee_prefix}flow_selector_channel_entrypoints
+            columnNames: flow_id, channel_entrypoint
+            tableName: ${gravitee_prefix}flow_selector_channel_entrypoints
+        - addColumn:
+            tableName: ${gravitee_prefix}flow_steps
+            columns:
+              - column:
+                  name: message_condition
+                  type: nvarchar(256)
+                  constraints:
+                    nullable: true
+        - modifyDataType:
+            tableName: ${gravitee_prefix}flow_steps
+            columnName: condition
+            newDataType: nvarchar(256)

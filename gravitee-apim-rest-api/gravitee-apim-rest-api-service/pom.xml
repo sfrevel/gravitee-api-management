@@ -17,17 +17,16 @@
 
 -->
 <project
-    xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
->
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xmlns="http://maven.apache.org/POM/4.0.0"
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-        <groupId>io.gravitee.apim.rest.api</groupId>
-        <artifactId>gravitee-apim-rest-api</artifactId>
+		<groupId>io.gravitee.apim.rest.api</groupId>
+		<artifactId>gravitee-apim-rest-api</artifactId>
 		<version>${revision}${sha1}${changelist}</version>
-    </parent>
+	</parent>
 
 	<artifactId>gravitee-apim-rest-api-service</artifactId>
 	<packaging>jar</packaging>
@@ -85,6 +84,18 @@
 		</dependency>
 
 		<dependency>
+			<groupId>io.gravitee.apim.plugin.endpoint</groupId>
+			<artifactId>gravitee-apim-plugin-endpoint-handler</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.gravitee.apim.plugin.entrypoint</groupId>
+			<artifactId>gravitee-apim-plugin-entrypoint-handler</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<dependency>
 			<groupId>io.gravitee.apim.repository</groupId>
 			<artifactId>gravitee-apim-repository-api</artifactId>
 		</dependency>
@@ -132,6 +143,11 @@
 			<groupId>io.gravitee.el</groupId>
 			<artifactId>gravitee-expression-language</artifactId>
 			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>io.gravitee.kubernetes</groupId>
+			<artifactId>gravitee-kubernetes-mapper</artifactId>
 		</dependency>
 
 		<!-- Lucene -->
@@ -256,13 +272,8 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.powermock</groupId>
-			<artifactId>powermock-module-junit4</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.powermock</groupId>
-			<artifactId>powermock-api-mockito2</artifactId>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-inline</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

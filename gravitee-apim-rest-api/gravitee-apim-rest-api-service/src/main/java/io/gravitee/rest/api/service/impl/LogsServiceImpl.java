@@ -21,31 +21,64 @@ import static java.lang.System.lineSeparator;
 
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.repository.analytics.AnalyticsException;
-import io.gravitee.repository.analytics.query.*;
+import io.gravitee.repository.analytics.query.DateRangeBuilder;
+import io.gravitee.repository.analytics.query.IntervalBuilder;
+import io.gravitee.repository.analytics.query.Order;
+import io.gravitee.repository.analytics.query.QueryBuilders;
+import io.gravitee.repository.analytics.query.SortBuilder;
 import io.gravitee.repository.analytics.query.tabular.TabularResponse;
 import io.gravitee.repository.log.api.LogRepository;
 import io.gravitee.repository.log.model.ExtendedLog;
 import io.gravitee.repository.management.model.ApplicationStatus;
-import io.gravitee.rest.api.model.*;
+import io.gravitee.rest.api.model.ApiKeyEntity;
+import io.gravitee.rest.api.model.ApplicationEntity;
+import io.gravitee.rest.api.model.InstanceEntity;
+import io.gravitee.rest.api.model.SubscriptionEntity;
 import io.gravitee.rest.api.model.analytics.query.LogQuery;
-import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.model.api.ApiLifecycleState;
-import io.gravitee.rest.api.model.log.*;
+import io.gravitee.rest.api.model.log.ApiRequest;
+import io.gravitee.rest.api.model.log.ApiRequestItem;
+import io.gravitee.rest.api.model.log.ApplicationRequest;
+import io.gravitee.rest.api.model.log.ApplicationRequestItem;
+import io.gravitee.rest.api.model.log.PlatformRequestItem;
+import io.gravitee.rest.api.model.log.SearchLogResponse;
 import io.gravitee.rest.api.model.log.extended.Request;
 import io.gravitee.rest.api.model.log.extended.Response;
 import io.gravitee.rest.api.model.parameters.Key;
 import io.gravitee.rest.api.model.parameters.ParameterReferenceType;
-import io.gravitee.rest.api.service.*;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
+import io.gravitee.rest.api.model.v4.plan.GenericPlanEntity;
+import io.gravitee.rest.api.model.v4.plan.PlanSecurityType;
+import io.gravitee.rest.api.service.ApiKeyService;
+import io.gravitee.rest.api.service.ApplicationService;
+import io.gravitee.rest.api.service.AuditService;
+import io.gravitee.rest.api.service.InstanceService;
+import io.gravitee.rest.api.service.LogsService;
+import io.gravitee.rest.api.service.ParameterService;
+import io.gravitee.rest.api.service.SubscriptionService;
 import io.gravitee.rest.api.service.common.ExecutionContext;
-import io.gravitee.rest.api.service.exceptions.*;
+import io.gravitee.rest.api.service.exceptions.ApiKeyNotFoundException;
+import io.gravitee.rest.api.service.exceptions.ApiNotFoundException;
+import io.gravitee.rest.api.service.exceptions.ApplicationNotFoundException;
+import io.gravitee.rest.api.service.exceptions.InstanceNotFoundException;
+import io.gravitee.rest.api.service.exceptions.LogNotFoundException;
+import io.gravitee.rest.api.service.exceptions.PlanNotFoundException;
+import io.gravitee.rest.api.service.exceptions.TechnicalManagementException;
+import io.gravitee.rest.api.service.v4.ApiSearchService;
+import io.gravitee.rest.api.service.v4.PlanSearchService;
 import io.netty.handler.codec.http.QueryStringDecoder;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.time.FastDateFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,11 +89,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class LogsServiceImpl implements LogsService {
 
-    private final Logger logger = LoggerFactory.getLogger(LogsServiceImpl.class);
-
     private static final String UNKNOWN_SERVICE = "1";
     private static final String UNKNOWN_SERVICE_MAPPED = "?";
-
     private static final String METADATA_NAME = "name";
     private static final String METADATA_DELETED = "deleted";
     private static final String METADATA_UNKNOWN = "unknown";
@@ -71,22 +101,23 @@ public class LogsServiceImpl implements LogsService {
     private static final String METADATA_DELETED_API_NAME = "Deleted API";
     private static final String METADATA_DELETED_APPLICATION_NAME = "Deleted application";
     private static final String METADATA_DELETED_PLAN_NAME = "Deleted plan";
-
     private static final String RFC_3339_DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
     private static final FastDateFormat dateFormatter = FastDateFormat.getInstance(RFC_3339_DATE_FORMAT);
     private static final char separator = ';';
+    private final Logger logger = LoggerFactory.getLogger(LogsServiceImpl.class);
 
+    @Lazy
     @Autowired
     private LogRepository logRepository;
 
     @Autowired
-    private ApiService apiService;
+    private ApiSearchService apiSearchService;
 
     @Autowired
     private ApplicationService applicationService;
 
     @Autowired
-    private PlanService planService;
+    private PlanSearchService planSearchService;
 
     @Autowired
     private InstanceService instanceService;
@@ -308,10 +339,10 @@ public class LogsServiceImpl implements LogsService {
                     metadata.put(METADATA_NAME, METADATA_UNKNOWN_API_NAME);
                     metadata.put(METADATA_UNKNOWN, Boolean.TRUE.toString());
                 } else {
-                    ApiEntity apiEntity = apiService.findById(executionContext, api);
-                    metadata.put(METADATA_NAME, apiEntity.getName());
-                    metadata.put(METADATA_VERSION, apiEntity.getVersion());
-                    if (ApiLifecycleState.ARCHIVED.equals(apiEntity.getLifecycleState())) {
+                    GenericApiEntity genericApiEntity = apiSearchService.findGenericById(executionContext, api);
+                    metadata.put(METADATA_NAME, genericApiEntity.getName());
+                    metadata.put(METADATA_VERSION, genericApiEntity.getApiVersion());
+                    if (ApiLifecycleState.ARCHIVED.equals(genericApiEntity.getLifecycleState())) {
                         metadata.put(METADATA_DELETED, Boolean.TRUE.toString());
                     }
                 }
@@ -356,7 +387,7 @@ public class LogsServiceImpl implements LogsService {
                     metadata.put(METADATA_NAME, METADATA_UNKNOWN_PLAN_NAME);
                     metadata.put(METADATA_UNKNOWN, Boolean.TRUE.toString());
                 } else {
-                    PlanEntity planEntity = planService.findById(executionContext, plan);
+                    GenericPlanEntity planEntity = planSearchService.findById(executionContext, plan);
                     metadata.put(METADATA_NAME, planEntity.getName());
                 }
             } catch (PlanNotFoundException anfe) {
@@ -403,8 +434,9 @@ public class LogsServiceImpl implements LogsService {
                 // wrong apikey
             }
         } else if (log.getPlan() != null && log.getApplication() != null) {
-            PlanEntity plan = planService.findById(executionContext, log.getPlan());
-            if (!PlanSecurityType.API_KEY.equals(plan.getSecurity()) && !PlanSecurityType.KEY_LESS.equals(plan.getSecurity())) {
+            GenericPlanEntity plan = planSearchService.findById(executionContext, log.getPlan());
+            PlanSecurityType planSecurityType = PlanSecurityType.valueOfLabel(plan.getPlanSecurity().getType());
+            if (PlanSecurityType.API_KEY != planSecurityType && PlanSecurityType.KEY_LESS != planSecurityType) {
                 Collection<SubscriptionEntity> subscriptions = subscriptionService.findByApplicationAndPlan(
                     executionContext,
                     log.getApplication(),

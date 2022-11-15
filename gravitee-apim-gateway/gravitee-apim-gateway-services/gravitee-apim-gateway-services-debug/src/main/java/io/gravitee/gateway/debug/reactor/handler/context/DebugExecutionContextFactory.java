@@ -16,21 +16,26 @@
 package io.gravitee.gateway.debug.reactor.handler.context;
 
 import io.gravitee.gateway.api.ExecutionContext;
-import io.gravitee.gateway.core.component.ComponentProvider;
-import io.gravitee.gateway.reactor.handler.context.ExecutionContextFactory;
+import io.gravitee.gateway.reactor.handler.context.V3ExecutionContextFactory;
 
 /**
+ * The ExecutionContextFactory for debug mode.
+ *
+ * {@inheritDoc}
+ *
  * @author Yann TAVERNIER (yann.tavernier at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class DebugExecutionContextFactory extends ExecutionContextFactory {
+public class DebugExecutionContextFactory implements V3ExecutionContextFactory {
 
-    public DebugExecutionContextFactory(ExecutionContextFactory executionContextFactory) {
-        super(executionContextFactory);
+    private V3ExecutionContextFactory delegate;
+
+    public DebugExecutionContextFactory(V3ExecutionContextFactory delegate) {
+        this.delegate = delegate;
     }
 
     @Override
-    public ExecutionContext create(ExecutionContext wrapped) {
-        return new DebugExecutionContext(super.create(wrapped));
+    public ExecutionContext create(ExecutionContext executionContext) {
+        return new DebugExecutionContext(delegate.create(executionContext));
     }
 }

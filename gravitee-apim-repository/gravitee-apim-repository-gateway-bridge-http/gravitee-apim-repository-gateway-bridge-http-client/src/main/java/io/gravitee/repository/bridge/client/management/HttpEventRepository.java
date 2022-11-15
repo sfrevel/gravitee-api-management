@@ -17,6 +17,7 @@ package io.gravitee.repository.bridge.client.management;
 
 import io.gravitee.common.data.domain.Page;
 import io.gravitee.repository.bridge.client.utils.BodyCodecs;
+import io.gravitee.repository.bridge.client.utils.ExcludeMethodFromGeneratedCoverage;
 import io.gravitee.repository.exceptions.TechnicalException;
 import io.gravitee.repository.management.api.EventRepository;
 import io.gravitee.repository.management.api.search.EventCriteria;
@@ -61,6 +62,7 @@ public class HttpEventRepository extends AbstractRepository implements EventRepo
     }
 
     @Override
+    @ExcludeMethodFromGeneratedCoverage
     public void delete(String eventId) throws TechnicalException {
         throw new IllegalStateException();
     }
@@ -108,6 +110,7 @@ public class HttpEventRepository extends AbstractRepository implements EventRepo
     }
 
     @Override
+    @ExcludeMethodFromGeneratedCoverage
     public Set<Event> findAll() throws TechnicalException {
         throw new IllegalStateException();
     }

@@ -20,35 +20,34 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import io.gravitee.common.event.Event;
-import io.gravitee.common.event.EventManager;
 import io.gravitee.common.http.IdGenerator;
-import io.gravitee.definition.model.ExecutionMode;
+import io.gravitee.definition.model.v4.ApiType;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
+import io.gravitee.gateway.core.component.ComponentProvider;
 import io.gravitee.gateway.core.processor.provider.ProcessorProviderChain;
 import io.gravitee.gateway.env.GatewayConfiguration;
-import io.gravitee.gateway.jupiter.core.context.MutableRequestExecutionContext;
+import io.gravitee.gateway.env.HttpRequestTimeoutConfiguration;
+import io.gravitee.gateway.http.vertx.TimeoutServerResponse;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.processor.ProcessorChain;
-import io.gravitee.gateway.jupiter.reactor.handler.EntrypointResolver;
+import io.gravitee.gateway.jupiter.reactor.handler.HttpAcceptorResolver;
 import io.gravitee.gateway.jupiter.reactor.processor.NotFoundProcessorChainFactory;
 import io.gravitee.gateway.jupiter.reactor.processor.PlatformProcessorChainFactory;
-import io.gravitee.gateway.reactor.Reactable;
-import io.gravitee.gateway.reactor.ReactorEvent;
-import io.gravitee.gateway.reactor.handler.HandlerEntrypoint;
+import io.gravitee.gateway.reactor.handler.HttpAcceptor;
 import io.gravitee.gateway.reactor.handler.ReactorHandler;
-import io.gravitee.gateway.reactor.handler.ReactorHandlerRegistry;
 import io.gravitee.gateway.reactor.processor.RequestProcessorChainFactory;
 import io.gravitee.gateway.reactor.processor.ResponseProcessorChainFactory;
 import io.gravitee.gateway.report.ReporterService;
-import io.reactivex.Completable;
-import io.reactivex.Flowable;
-import io.reactivex.observers.TestObserver;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.observers.TestObserver;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpVersion;
-import io.vertx.reactivex.core.MultiMap;
-import io.vertx.reactivex.core.http.HttpServerRequest;
-import io.vertx.reactivex.core.http.HttpServerResponse;
+import io.vertx.rxjava3.core.MultiMap;
+import io.vertx.rxjava3.core.http.HttpServerRequest;
+import io.vertx.rxjava3.core.http.HttpServerResponse;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,9 +55,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
 
 /**
@@ -72,17 +71,14 @@ class DefaultHttpRequestDispatcherTest {
     protected static final String PATH = "/path";
     protected static final String MOCK_ERROR_MESSAGE = "Mock error";
 
-    @Mock
-    private EventManager eventManager;
+    @Spy
+    private final Vertx vertx = Vertx.vertx();
 
     @Mock
     private GatewayConfiguration gatewayConfiguration;
 
     @Mock
-    private ReactorHandlerRegistry reactorHandlerRegistry;
-
-    @Mock
-    private EntrypointResolver entrypointResolver;
+    private HttpAcceptorResolver httpAcceptorResolver;
 
     @Mock
     private IdGenerator idGenerator;
@@ -112,13 +108,19 @@ class DefaultHttpRequestDispatcherTest {
     private io.vertx.core.http.HttpServerResponse response;
 
     @Mock
-    private HandlerEntrypoint handlerEntrypoint;
+    private HttpAcceptor handlerEntrypoint;
 
     @Mock
     private Environment environment;
 
     @Mock
     private ReporterService reporterService;
+
+    @Mock
+    private ComponentProvider globalComponentProvider;
+
+    @Mock
+    private HttpRequestTimeoutConfiguration httpRequestTimeoutConfiguration;
 
     private DefaultHttpRequestDispatcher cut;
 
@@ -152,30 +154,34 @@ class DefaultHttpRequestDispatcherTest {
         lenient().when(responseProcessorChainFactory.create()).thenReturn(new ProcessorProviderChain<>(List.of()));
         lenient().when(platformProcessorChainFactory.preProcessorChain()).thenReturn(new ProcessorChain("pre", List.of()));
         lenient().when(platformProcessorChainFactory.postProcessorChain()).thenReturn(new ProcessorChain("post", List.of()));
+        lenient().when(httpRequestTimeoutConfiguration.getHttpRequestTimeout()).thenReturn(0L);
+        lenient().when(httpRequestTimeoutConfiguration.getHttpRequestTimeoutGraceDelay()).thenReturn(10L);
 
         cut =
             new DefaultHttpRequestDispatcher(
-                eventManager,
                 gatewayConfiguration,
-                reactorHandlerRegistry,
-                entrypointResolver,
+                httpAcceptorResolver,
                 idGenerator,
+                globalComponentProvider,
                 new RequestProcessorChainFactory(),
                 responseProcessorChainFactory,
                 platformProcessorChainFactory,
                 notFoundProcessorChainFactory,
-                false
+                false,
+                httpRequestTimeoutConfiguration,
+                vertx
             );
-        cut.setApplicationContext(mock(ApplicationContext.class));
+        //TODO: to check: is this needed ?
+        // cut.setApplicationContext(mock(ApplicationContext.class));
     }
 
     @Test
-    public void shouldHandleJupiterRequest() {
-        final ApiReactor apiReactor = mock(ApiReactor.class, withSettings().extraInterfaces(ReactorHandler.class));
+    void shouldHandleJupiterRequest() {
+        final ApiReactor apiReactor = mock(ApiReactor.class);
 
         this.prepareJupiterMock(handlerEntrypoint, apiReactor);
 
-        when(apiReactor.handle(any(MutableRequestExecutionContext.class))).thenReturn(Completable.complete());
+        when(apiReactor.handle(any(MutableExecutionContext.class))).thenReturn(Completable.complete());
 
         final TestObserver<Void> obs = cut.dispatch(rxRequest).test();
 
@@ -183,9 +189,9 @@ class DefaultHttpRequestDispatcherTest {
     }
 
     @Test
-    public void shouldSetMetricsWhenHandlingJupiterRequest() {
+    void shouldSetMetricsWhenHandlingJupiterRequest() {
         final ApiReactor apiReactor = mock(ApiReactor.class, withSettings().extraInterfaces(ReactorHandler.class));
-        final ArgumentCaptor<MutableRequestExecutionContext> ctxCaptor = ArgumentCaptor.forClass(MutableRequestExecutionContext.class);
+        final ArgumentCaptor<MutableExecutionContext> ctxCaptor = ArgumentCaptor.forClass(MutableExecutionContext.class);
 
         this.prepareJupiterMock(handlerEntrypoint, apiReactor);
 
@@ -194,27 +200,27 @@ class DefaultHttpRequestDispatcherTest {
         when(apiReactor.handle(ctxCaptor.capture())).thenReturn(Completable.complete());
         cut.dispatch(rxRequest).test().assertResult();
 
-        final MutableRequestExecutionContext ctxCaptorValue = ctxCaptor.getValue();
+        final MutableExecutionContext ctxCaptorValue = ctxCaptor.getValue();
         assertThat(ctxCaptorValue.request().metrics().getTenant()).isEqualTo("TENANT");
         assertThat(ctxCaptorValue.request().metrics().getZone()).isEqualTo("ZONE");
     }
 
     @Test
-    public void shouldPropagateErrorWhenErrorWithJupiterRequest() {
+    void shouldPropagateErrorWhenErrorWithJupiterRequest() {
         final ApiReactor apiReactor = mock(ApiReactor.class, withSettings().extraInterfaces(ReactorHandler.class));
 
         this.prepareJupiterMock(handlerEntrypoint, apiReactor);
 
-        when(apiReactor.handle(any(MutableRequestExecutionContext.class)))
-            .thenReturn(Completable.error(new RuntimeException(MOCK_ERROR_MESSAGE)));
+        when(apiReactor.handle(any(MutableExecutionContext.class))).thenReturn(Completable.error(new RuntimeException(MOCK_ERROR_MESSAGE)));
 
         final TestObserver<Void> obs = cut.dispatch(rxRequest).test();
 
-        obs.assertErrorMessage(MOCK_ERROR_MESSAGE);
+        obs.assertError(RuntimeException.class);
+        obs.assertError(t -> MOCK_ERROR_MESSAGE.equals(t.getMessage()));
     }
 
     @Test
-    public void shouldHandleV3Request() {
+    void shouldHandleV3Request() {
         final ReactorHandler apiReactor = mock(ReactorHandler.class);
 
         this.prepareV3Mock(handlerEntrypoint, apiReactor);
@@ -231,11 +237,45 @@ class DefaultHttpRequestDispatcherTest {
 
         final TestObserver<Void> obs = cut.dispatch(rxRequest).test();
 
+        verify(vertx, never()).setTimer(anyLong(), any());
+        verify(vertx, never()).cancelTimer(anyLong());
+
         obs.assertResult();
     }
 
     @Test
-    public void shouldSetMetricsWhenHandlingV3Request() {
+    void shouldHandleV3RequestWithTimeout() {
+        long vertxTimerId = 125366;
+        long timeout = 57;
+
+        doReturn(vertxTimerId).when(vertx).setTimer(anyLong(), any());
+        when(httpRequestTimeoutConfiguration.getHttpRequestTimeout()).thenReturn(timeout);
+
+        final ReactorHandler apiReactor = mock(ReactorHandler.class);
+
+        this.prepareV3Mock(handlerEntrypoint, apiReactor);
+        when(response.ended()).thenReturn(true);
+        final ArgumentCaptor<ExecutionContext> ctxCaptor = ArgumentCaptor.forClass(ExecutionContext.class);
+
+        doAnswer(
+                i -> {
+                    simulateEndHandlerCall(i);
+                    return null;
+                }
+            )
+            .when(apiReactor)
+            .handle(ctxCaptor.capture(), any(Handler.class));
+
+        final TestObserver<Void> obs = cut.dispatch(rxRequest).test();
+
+        verify(vertx).setTimer(eq(timeout), any());
+        verify(vertx).cancelTimer(vertxTimerId);
+
+        obs.assertResult();
+    }
+
+    @Test
+    void shouldSetMetricsWhenHandlingV3Request() {
         final ReactorHandler apiReactor = mock(ReactorHandler.class);
 
         this.prepareV3Mock(handlerEntrypoint, apiReactor);
@@ -262,7 +302,7 @@ class DefaultHttpRequestDispatcherTest {
     }
 
     @Test
-    public void shouldEndResponseWhenNotAlreadyEndedByV3Handler() {
+    void shouldEndResponseWhenNotAlreadyEndedByV3Handler() {
         final ReactorHandler apiReactor = mock(ReactorHandler.class);
 
         this.prepareV3Mock(handlerEntrypoint, apiReactor);
@@ -290,7 +330,7 @@ class DefaultHttpRequestDispatcherTest {
     }
 
     @Test
-    public void shouldPropagateErrorWhenExceptionWithV3Request() {
+    void shouldPropagateErrorWhenExceptionWithV3Request() {
         final ReactorHandler apiReactor = mock(ReactorHandler.class);
 
         this.prepareV3Mock(handlerEntrypoint, apiReactor);
@@ -299,14 +339,15 @@ class DefaultHttpRequestDispatcherTest {
 
         final TestObserver<Void> obs = cut.dispatch(rxRequest).test();
 
-        obs.assertErrorMessage(MOCK_ERROR_MESSAGE);
+        obs.assertError(RuntimeException.class);
+        obs.assertError(t -> MOCK_ERROR_MESSAGE.equals(t.getMessage()));
     }
 
     @Test
-    public void shouldHandleNotFoundWhenNoHandlerResolved() {
+    void shouldHandleNotFoundWhenNoHandlerResolved() {
         ProcessorChain processorChain = spy(new ProcessorChain("id", List.of()));
         when(notFoundProcessorChainFactory.processorChain()).thenReturn(processorChain);
-        when(entrypointResolver.resolve(HOST, PATH)).thenReturn(null);
+        when(httpAcceptorResolver.resolve(HOST, PATH)).thenReturn(null);
 
         cut.dispatch(rxRequest).test().assertResult();
 
@@ -315,12 +356,12 @@ class DefaultHttpRequestDispatcherTest {
     }
 
     @Test
-    public void shouldHandleNotFoundWhenNoTargetOnResolvedHandler() {
+    void shouldHandleNotFoundWhenNoTargetOnResolvedHandler() {
         this.prepareV3Mock(handlerEntrypoint, null);
 
         ProcessorChain processorChain = spy(new ProcessorChain("id", List.of()));
         when(notFoundProcessorChainFactory.processorChain()).thenReturn(processorChain);
-        when(entrypointResolver.resolve(HOST, PATH)).thenReturn(null);
+        when(httpAcceptorResolver.resolve(HOST, PATH)).thenReturn(null);
         cut.dispatch(rxRequest).test().assertResult();
 
         verify(notFoundProcessorChainFactory).processorChain();
@@ -328,87 +369,34 @@ class DefaultHttpRequestDispatcherTest {
     }
 
     @Test
-    public void shouldSetMetricsWhenHandlingNotFoundRequest() {
+    void shouldSetMetricsWhenHandlingNotFoundRequest() {
         ProcessorChain processorChain = spy(new ProcessorChain("id", List.of()));
         when(notFoundProcessorChainFactory.processorChain()).thenReturn(processorChain);
-        when(entrypointResolver.resolve(HOST, PATH)).thenReturn(null);
+        when(httpAcceptorResolver.resolve(HOST, PATH)).thenReturn(null);
 
-        final ArgumentCaptor<MutableRequestExecutionContext> ctxCaptor = ArgumentCaptor.forClass(MutableRequestExecutionContext.class);
+        final ArgumentCaptor<MutableExecutionContext> ctxCaptor = ArgumentCaptor.forClass(MutableExecutionContext.class);
 
         when(gatewayConfiguration.tenant()).thenReturn(Optional.of("TENANT"));
         when(gatewayConfiguration.zone()).thenReturn(Optional.of("ZONE"));
         when(processorChain.execute(ctxCaptor.capture(), any())).thenCallRealMethod();
         cut.dispatch(rxRequest).test().assertResult();
 
-        final MutableRequestExecutionContext ctxCaptorValue = ctxCaptor.getValue();
+        final MutableExecutionContext ctxCaptorValue = ctxCaptor.getValue();
         assertThat(ctxCaptorValue.request().metrics().getTenant()).isEqualTo("TENANT");
         assertThat(ctxCaptorValue.request().metrics().getZone()).isEqualTo("ZONE");
     }
 
-    @Test
-    public void shouldCreateToHandlerRegistryWhenDeployApiEvent() {
-        final Event<ReactorEvent, Reactable> event = mock(Event.class);
-        final Reactable api = mock(Reactable.class);
-
-        when(event.type()).thenReturn(ReactorEvent.DEPLOY);
-        when(event.content()).thenReturn(api);
-        cut.onEvent(event);
-
-        verify(reactorHandlerRegistry).create(api);
-        verifyNoMoreInteractions(reactorHandlerRegistry);
-    }
-
-    @Test
-    public void shouldUpdateToHandlerRegistryWhenUpdateApiEvent() {
-        final Event<ReactorEvent, Reactable> event = mock(Event.class);
-        final Reactable api = mock(Reactable.class);
-
-        when(event.type()).thenReturn(ReactorEvent.UPDATE);
-        when(event.content()).thenReturn(api);
-        cut.onEvent(event);
-
-        verify(reactorHandlerRegistry).update(api);
-        verifyNoMoreInteractions(reactorHandlerRegistry);
-    }
-
-    @Test
-    public void shouldRemoveToHandlerRegistryWhenUpdateApiEvent() {
-        final Event<ReactorEvent, Reactable> event = mock(Event.class);
-        final Reactable api = mock(Reactable.class);
-
-        when(event.type()).thenReturn(ReactorEvent.UNDEPLOY);
-        when(event.content()).thenReturn(api);
-        cut.onEvent(event);
-
-        verify(reactorHandlerRegistry).remove(api);
-        verifyNoMoreInteractions(reactorHandlerRegistry);
-    }
-
-    @Test
-    public void shouldSubscribeToEventsWhenStarting() throws Exception {
-        cut.start();
-        verify(eventManager).subscribeForEvents(cut, ReactorEvent.class);
-    }
-
-    @Test
-    public void shouldClearHandlerRegistryWhenStopping() throws Exception {
-        cut.stop();
-        verify(reactorHandlerRegistry).clear();
-    }
-
-    private void prepareJupiterMock(HandlerEntrypoint handlerEntrypoint, ApiReactor apiReactor) {
-        when(entrypointResolver.resolve(HOST, PATH)).thenReturn(handlerEntrypoint);
-        when(handlerEntrypoint.executionMode()).thenReturn(ExecutionMode.JUPITER);
+    private void prepareJupiterMock(HttpAcceptor handlerEntrypoint, ApiReactor apiReactor) {
+        when(httpAcceptorResolver.resolve(HOST, PATH)).thenReturn(handlerEntrypoint);
         when(handlerEntrypoint.path()).thenReturn(PATH);
-        when(handlerEntrypoint.target()).thenReturn(apiReactor);
+        when(handlerEntrypoint.reactor()).thenReturn(apiReactor);
     }
 
-    private void prepareV3Mock(HandlerEntrypoint handlerEntrypoint, ReactorHandler apiReactor) {
-        when(entrypointResolver.resolve(HOST, PATH)).thenReturn(handlerEntrypoint);
+    private void prepareV3Mock(HttpAcceptor handlerEntrypoint, ReactorHandler apiReactor) {
+        when(httpAcceptorResolver.resolve(HOST, PATH)).thenReturn(handlerEntrypoint);
 
         if (apiReactor != null) {
-            when(handlerEntrypoint.executionMode()).thenReturn(ExecutionMode.V3);
-            when(handlerEntrypoint.target()).thenReturn(apiReactor);
+            when(handlerEntrypoint.reactor()).thenReturn(apiReactor);
         }
     }
 

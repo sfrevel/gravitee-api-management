@@ -15,9 +15,8 @@
  */
 package io.gravitee.gateway.jupiter.reactor;
 
-import io.gravitee.common.service.Service;
-import io.reactivex.Completable;
-import io.vertx.reactivex.core.http.HttpServerRequest;
+import io.reactivex.rxjava3.core.Completable;
+import io.vertx.rxjava3.core.http.HttpServerRequest;
 
 /**
  * Request dispatcher responsible to dispatch any HTTP request to the appropriate {@link io.gravitee.gateway.reactor.handler.ReactorHandler}.
@@ -25,7 +24,7 @@ import io.vertx.reactivex.core.http.HttpServerRequest;
  * @author Jeoffrey HAEYAERT (jeoffrey.haeyaert at graviteesource.com)
  * @author GraviteeSource Team
  */
-public interface HttpRequestDispatcher extends Service<HttpRequestDispatcher> {
+public interface HttpRequestDispatcher {
     /**
      * Dispatches the incoming request to the right {@link io.gravitee.gateway.reactor.handler.ReactorHandler}.
      *

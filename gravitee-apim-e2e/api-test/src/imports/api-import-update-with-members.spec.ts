@@ -15,15 +15,15 @@
  */
 import { afterAll, describe, expect, test } from '@jest/globals';
 
-import { APIsApi } from '@management-apis/APIsApi';
-import { forManagementAsAdminUser } from '@client-conf/*';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { forManagementAsAdminUser } from '@gravitee/utils/configuration';
 import { succeed } from '@lib/jest-utils';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { UsersApi } from '@management-apis/UsersApi';
-import { UsersFaker } from '@management-fakers/UsersFaker';
-import { RolesApi } from '@management-apis/RolesApi';
-import { RoleFaker } from '@management-fakers/RoleFaker';
-import { RoleScope } from '@management-models/RoleScope';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { UsersApi } from '@gravitee/management-webclient-sdk/src/lib/apis/UsersApi';
+import { UsersFaker } from '@gravitee/fixtures/management/UsersFaker';
+import { RolesApi } from '@gravitee/management-webclient-sdk/src/lib/apis/RolesApi';
+import { RoleFaker } from '@gravitee/fixtures/management/RoleFaker';
+import { RoleScope } from '@gravitee/management-webclient-sdk/src/lib/models/RoleScope';
 
 const apisResource = new APIsApi(forManagementAsAdminUser());
 const usersResource = new UsersApi(forManagementAsAdminUser());

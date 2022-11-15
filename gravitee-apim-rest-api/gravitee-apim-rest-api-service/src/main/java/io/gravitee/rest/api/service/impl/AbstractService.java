@@ -32,7 +32,7 @@ public abstract class AbstractService extends TransactionalService {
 
     public static final String ENVIRONMENT_ADMIN = RoleScope.ENVIRONMENT.name() + ':' + SystemRole.ADMIN.name();
 
-    String getAuthenticatedUsername() {
+    protected String getAuthenticatedUsername() {
         UserDetails authenticatedUser = getAuthenticatedUser();
         return authenticatedUser == null ? null : authenticatedUser.getUsername();
     }

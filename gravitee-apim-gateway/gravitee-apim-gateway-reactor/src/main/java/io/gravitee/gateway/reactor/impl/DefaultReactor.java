@@ -15,64 +15,48 @@
  */
 package io.gravitee.gateway.reactor.impl;
 
-import io.gravitee.common.event.Event;
-import io.gravitee.common.event.EventListener;
-import io.gravitee.common.event.EventManager;
-import io.gravitee.common.service.AbstractService;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.Request;
 import io.gravitee.gateway.api.Response;
 import io.gravitee.gateway.api.context.SimpleExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.env.GatewayConfiguration;
-import io.gravitee.gateway.reactor.Reactable;
 import io.gravitee.gateway.reactor.Reactor;
-import io.gravitee.gateway.reactor.ReactorEvent;
-import io.gravitee.gateway.reactor.handler.EntrypointResolver;
-import io.gravitee.gateway.reactor.handler.HandlerEntrypoint;
-import io.gravitee.gateway.reactor.handler.ReactorHandlerRegistry;
+import io.gravitee.gateway.reactor.handler.AcceptorResolver;
+import io.gravitee.gateway.reactor.handler.HttpAcceptor;
 import io.gravitee.gateway.reactor.processor.NotFoundProcessorChainFactory;
 import io.gravitee.gateway.reactor.processor.RequestProcessorChainFactory;
 import io.gravitee.gateway.reactor.processor.ResponseProcessorChainFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class DefaultReactor extends AbstractService<Reactor> implements Reactor, EventListener<ReactorEvent, Reactable> {
+public class DefaultReactor implements Reactor {
 
     private final Logger LOGGER = LoggerFactory.getLogger(DefaultReactor.class);
 
-    protected EntrypointResolver entrypointResolver;
-
-    @Autowired
-    protected EventManager eventManager;
-
-    @Autowired
-    private ReactorHandlerRegistry reactorHandlerRegistry;
-
-    @Autowired
-    private GatewayConfiguration gatewayConfiguration;
-
-    @Autowired
-    @Qualifier("v3NotFoundProcessorChainFactory")
-    private NotFoundProcessorChainFactory notFoundProcessorChainFactory;
-
+    private final GatewayConfiguration gatewayConfiguration;
     private final RequestProcessorChainFactory requestProcessorChainFactory;
     private final ResponseProcessorChainFactory responseProcessorChainFactory;
+    private final NotFoundProcessorChainFactory notFoundProcessorChainFactory;
+    private final AcceptorResolver acceptorResolver;
 
     public DefaultReactor(
-        EntrypointResolver entrypointResolver,
-        RequestProcessorChainFactory requestProcessorChainFactory,
-        ResponseProcessorChainFactory responseProcessorChainFactory
+        final @Qualifier("v3AcceptorResolver") AcceptorResolver acceptorResolver,
+        final GatewayConfiguration gatewayConfiguration,
+        final @Qualifier("v3RequestProcessorChainFactory") RequestProcessorChainFactory requestProcessorChainFactory,
+        final @Qualifier("v3ResponseProcessorChainFactory") ResponseProcessorChainFactory responseProcessorChainFactory,
+        final @Qualifier("v3NotFoundProcessorChainFactory") NotFoundProcessorChainFactory notFoundProcessorChainFactory
     ) {
-        this.entrypointResolver = entrypointResolver;
+        this.acceptorResolver = acceptorResolver;
+        this.gatewayConfiguration = gatewayConfiguration;
         this.requestProcessorChainFactory = requestProcessorChainFactory;
         this.responseProcessorChainFactory = responseProcessorChainFactory;
+        this.notFoundProcessorChainFactory = notFoundProcessorChainFactory;
     }
 
     @Override
@@ -93,11 +77,11 @@ public class DefaultReactor extends AbstractService<Reactor> implements Reactor,
             .create()
             .handler(
                 ctx -> {
-                    HandlerEntrypoint entrypoint = entrypointResolver.resolve(ctx);
+                    HttpAcceptor httpAcceptorHandler = acceptorResolver.resolve(ctx);
 
-                    if (entrypoint != null) {
-                        entrypoint
-                            .target()
+                    if (httpAcceptorHandler != null) {
+                        httpAcceptorHandler
+                            .reactor()
                             .handle(
                                 ctx,
                                 context1 -> {
@@ -121,34 +105,5 @@ public class DefaultReactor extends AbstractService<Reactor> implements Reactor,
 
     private void processResponse(ExecutionContext context, Handler<ExecutionContext> handler) {
         responseProcessorChainFactory.create().handler(handler).handle(context);
-    }
-
-    @Override
-    public void onEvent(Event<ReactorEvent, Reactable> event) {
-        switch (event.type()) {
-            case DEPLOY:
-                reactorHandlerRegistry.create(event.content());
-                break;
-            case UPDATE:
-                reactorHandlerRegistry.update(event.content());
-                break;
-            case UNDEPLOY:
-                reactorHandlerRegistry.remove(event.content());
-                break;
-        }
-    }
-
-    @Override
-    protected void doStart() throws Exception {
-        super.doStart();
-
-        eventManager.subscribeForEvents(this, ReactorEvent.class);
-    }
-
-    @Override
-    protected void doStop() throws Exception {
-        super.doStop();
-
-        reactorHandlerRegistry.clear();
     }
 }

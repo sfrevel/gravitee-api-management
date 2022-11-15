@@ -27,7 +27,6 @@ import io.gravitee.rest.api.model.PageEntity;
 import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.model.api.ApiEntrypointEntity;
 import io.gravitee.rest.api.service.SwaggerService;
-import io.gravitee.rest.api.service.impl.SwaggerServiceImpl;
 import io.gravitee.rest.api.service.impl.swagger.SwaggerProperties;
 import io.gravitee.rest.api.service.impl.swagger.transformer.entrypoints.EntrypointsOAITransformer;
 import io.gravitee.rest.api.service.impl.swagger.transformer.page.PageConfigurationOAITransformer;
@@ -94,7 +93,10 @@ public class SwaggerService_TransformTest {
 
         swaggerService.transform(
             descriptor,
-            Arrays.asList(new PageConfigurationOAITransformer(pageEntity), new EntrypointsOAITransformer(pageEntity, apiEntity))
+            Arrays.asList(
+                new PageConfigurationOAITransformer(pageEntity),
+                new EntrypointsOAITransformer(pageEntity, apiEntity.getEntrypoints(), apiEntity.getContextPath())
+            )
         );
 
         assertNotNull(descriptor.toJson());
@@ -115,7 +117,10 @@ public class SwaggerService_TransformTest {
 
         swaggerService.transform(
             descriptor,
-            Arrays.asList(new PageConfigurationOAITransformer(pageEntity), new EntrypointsOAITransformer(pageEntity, apiEntity))
+            Arrays.asList(
+                new PageConfigurationOAITransformer(pageEntity),
+                new EntrypointsOAITransformer(pageEntity, apiEntity.getEntrypoints(), apiEntity.getContextPath())
+            )
         );
 
         assertNotNull(descriptor.toJson());
@@ -137,7 +142,10 @@ public class SwaggerService_TransformTest {
 
         swaggerService.transform(
             descriptor,
-            Arrays.asList(new PageConfigurationOAITransformer(pageEntity), new EntrypointsOAITransformer(pageEntity, apiEntity))
+            Arrays.asList(
+                new PageConfigurationOAITransformer(pageEntity),
+                new EntrypointsOAITransformer(pageEntity, apiEntity.getEntrypoints(), apiEntity.getContextPath())
+            )
         );
 
         assertNotNull(descriptor.toJson());
@@ -159,7 +167,10 @@ public class SwaggerService_TransformTest {
 
         swaggerService.transform(
             descriptor,
-            Arrays.asList(new PageConfigurationOAITransformer(pageEntity), new EntrypointsOAITransformer(pageEntity, apiEntity))
+            Arrays.asList(
+                new PageConfigurationOAITransformer(pageEntity),
+                new EntrypointsOAITransformer(pageEntity, apiEntity.getEntrypoints(), apiEntity.getContextPath())
+            )
         );
 
         assertNotNull(descriptor.toJson());
@@ -181,7 +192,10 @@ public class SwaggerService_TransformTest {
 
         swaggerService.transform(
             descriptor,
-            Arrays.asList(new PageConfigurationOAITransformer(pageEntity), new EntrypointsOAITransformer(pageEntity, apiEntity))
+            Arrays.asList(
+                new PageConfigurationOAITransformer(pageEntity),
+                new EntrypointsOAITransformer(pageEntity, apiEntity.getEntrypoints(), apiEntity.getContextPath())
+            )
         );
 
         assertNotNull(descriptor.toJson());
@@ -203,7 +217,10 @@ public class SwaggerService_TransformTest {
 
         swaggerService.transform(
             descriptor,
-            Arrays.asList(new PageConfigurationOAITransformer(pageEntity), new EntrypointsOAITransformer(pageEntity, apiEntity))
+            Arrays.asList(
+                new PageConfigurationOAITransformer(pageEntity),
+                new EntrypointsOAITransformer(pageEntity, apiEntity.getEntrypoints(), apiEntity.getContextPath())
+            )
         );
 
         assertNotNull(descriptor.toJson());

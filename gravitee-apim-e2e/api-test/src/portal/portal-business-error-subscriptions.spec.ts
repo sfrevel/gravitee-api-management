@@ -15,29 +15,29 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 
-import { forManagementAsAdminUser, forPortalAsAdminUser, forPortalAsSimpleUser } from '@client-conf/*';
-import { APIsApi } from '@management-apis/APIsApi';
-import { ApisFaker } from '@management-fakers/ApisFaker';
+import { forManagementAsAdminUser, forPortalAsAdminUser, forPortalAsSimpleUser } from '@gravitee/utils/configuration';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
 import { fail } from '@lib/jest-utils';
-import { ApiEntity } from '@management-models/ApiEntity';
-import { ApiLifecycleState } from '@management-models/ApiLifecycleState';
-import { Visibility } from '@management-models/Visibility';
-import { PlansFaker } from '@management-fakers/PlansFaker';
-import { ApplicationsFaker } from '@management-fakers/ApplicationsFaker';
-import { APIPlansApi } from '@management-apis/APIPlansApi';
-import { ApplicationsApi } from '@management-apis/ApplicationsApi';
-import { PlanEntity } from '@management-models/PlanEntity';
-import { ApplicationEntity } from '@management-models/ApplicationEntity';
-import { SubscriptionApi as PortalSubscriptionApi } from '@portal-apis/SubscriptionApi';
-import { APISubscriptionsApi } from '@management-apis/APISubscriptionsApi';
-import { Subscription } from '@management-models/Subscription';
-import { ApplicationSubscriptionsApi } from '@management-apis/ApplicationSubscriptionsApi';
-import { ApiKeyEntity } from '@management-models/ApiKeyEntity';
-import { PlanSecurityType } from '@management-models/PlanSecurityType';
-import { PlanValidationType } from '@management-models/PlanValidationType';
-import { SubscriptionStatus } from '@management-models/SubscriptionStatus';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
+import { ApiLifecycleState } from '@gravitee/management-webclient-sdk/src/lib/models/ApiLifecycleState';
+import { Visibility } from '@gravitee/management-webclient-sdk/src/lib/models/Visibility';
+import { PlansFaker } from '@gravitee/fixtures/management/PlansFaker';
+import { ApplicationsFaker } from '@gravitee/fixtures/management/ApplicationsFaker';
+import { APIPlansApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIPlansApi';
+import { ApplicationsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/ApplicationsApi';
+import { PlanEntity } from '@gravitee/management-webclient-sdk/src/lib/models/PlanEntity';
+import { ApplicationEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApplicationEntity';
+import { SubscriptionApi as PortalSubscriptionApi } from '@gravitee/portal-webclient-sdk/src/lib/apis/SubscriptionApi';
+import { APISubscriptionsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APISubscriptionsApi';
+import { Subscription } from '@gravitee/management-webclient-sdk/src/lib/models/Subscription';
+import { ApplicationSubscriptionsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/ApplicationSubscriptionsApi';
+import { ApiKeyEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiKeyEntity';
+import { PlanSecurityType } from '@gravitee/management-webclient-sdk/src/lib/models/PlanSecurityType';
+import { PlanValidationType } from '@gravitee/management-webclient-sdk/src/lib/models/PlanValidationType';
+import { SubscriptionStatus } from '@gravitee/management-webclient-sdk/src/lib/models/SubscriptionStatus';
 import faker from '@faker-js/faker';
-import { UpdateApiEntityFromJSON } from '@management-models/UpdateApiEntity';
+import { UpdateApiEntityFromJSON } from '@gravitee/management-webclient-sdk/src/lib/models/UpdateApiEntity';
 
 const orgId = 'DEFAULT';
 const envId = 'DEFAULT';
@@ -85,7 +85,7 @@ describe('Portal: Business Error - subscriptions', () => {
       envId,
       orgId,
       api: createdApi.id,
-      newPlanEntity: PlansFaker.newPlan({ security: PlanSecurityType.APIKEY, validation: PlanValidationType.AUTO }),
+      newPlanEntity: PlansFaker.newPlan({ security: PlanSecurityType.API_KEY, validation: PlanValidationType.AUTO }),
     });
 
     // publish the api plan
@@ -132,7 +132,7 @@ describe('Portal: Business Error - subscriptions', () => {
           envId,
           orgId,
           api: createdApi.id,
-          newPlanEntity: PlansFaker.newPlan({ security: PlanSecurityType.APIKEY, validation: PlanValidationType.AUTO }),
+          newPlanEntity: PlansFaker.newPlan({ security: PlanSecurityType.API_KEY, validation: PlanValidationType.AUTO }),
         });
 
         // publish the api plan

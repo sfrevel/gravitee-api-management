@@ -18,6 +18,9 @@ package io.gravitee.rest.api.service.cockpit.command.handler;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.gravitee.cockpit.api.command.Command;
@@ -29,43 +32,41 @@ import io.gravitee.rest.api.model.EnvironmentEntity;
 import io.gravitee.rest.api.model.UserEntity;
 import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.model.api.ApiEntityResult;
-import io.gravitee.rest.api.service.ApiService;
 import io.gravitee.rest.api.service.EnvironmentService;
 import io.gravitee.rest.api.service.UserService;
 import io.gravitee.rest.api.service.cockpit.model.DeploymentMode;
 import io.gravitee.rest.api.service.cockpit.services.ApiServiceCockpit;
 import io.gravitee.rest.api.service.cockpit.services.CockpitApiPermissionChecker;
 import io.gravitee.rest.api.service.common.GraviteeContext;
-import io.reactivex.observers.TestObserver;
+import io.gravitee.rest.api.service.v4.ApiSearchService;
+import io.reactivex.rxjava3.observers.TestObserver;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PowerMockIgnore;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
+import org.mockito.MockedStatic;
+import org.mockito.junit.MockitoJUnitRunner;
 
 /**
  * @author Julien GIOVARESCO (julien.giovaresco at graviteesource.com)
  * @author GraviteeSource Team
  */
-@RunWith(PowerMockRunner.class)
-@PrepareForTest(GraviteeContext.class)
-@PowerMockIgnore({ "javax.security.*", "com.sun.org.apache.xerces.*", "javax.xml.*", "org.xml.*", "javax.management.*" })
+@RunWith(MockitoJUnitRunner.class)
 public class DeployModelCommandHandlerTest {
 
     public static final String ENVIRONMENT_ID = "environment#id";
     public static final String ORGANIZATION_ID = "organization#id";
+    MockedStatic<GraviteeContext> mockedStaticGraviteeContext;
 
     @Mock
     private UserService userService;
 
     @Mock
-    private ApiService apiService;
+    private ApiSearchService apiSearchService;
 
     @Mock
     private ApiServiceCockpit cockpitApiService;
@@ -80,8 +81,13 @@ public class DeployModelCommandHandlerTest {
 
     @Before
     public void setUp() throws Exception {
-        cut = new DeployModelCommandHandler(apiService, cockpitApiService, permissionChecker, userService, environmentService);
-        PowerMockito.spy(GraviteeContext.class);
+        cut = new DeployModelCommandHandler(apiSearchService, cockpitApiService, permissionChecker, userService, environmentService);
+        mockedStaticGraviteeContext = mockStatic(GraviteeContext.class);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        mockedStaticGraviteeContext.close();
     }
 
     @Test
@@ -90,7 +96,7 @@ public class DeployModelCommandHandlerTest {
     }
 
     @Test
-    public void creates_an_API_DOCUMENTED() {
+    public void creates_an_API_DOCUMENTED() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -99,8 +105,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -143,16 +147,15 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.SUCCEEDED));
 
-        PowerMockito.verifyStatic(GraviteeContext.class);
-        GraviteeContext.setCurrentEnvironment(ENVIRONMENT_ID);
+        mockedStaticGraviteeContext.verify(() -> GraviteeContext.getExecutionContext(), times(4));
         GraviteeContext.setCurrentEnvironment(ENVIRONMENT_ID);
     }
 
     @Test
-    public void creates_an_API_MOCKED_mode() {
+    public void creates_an_API_MOCKED_mode() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -161,8 +164,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -204,12 +205,12 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.SUCCEEDED));
     }
 
     @Test
-    public void creates_an_API_PUBLISHED_mode() {
+    public void creates_an_API_PUBLISHED_mode() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -218,8 +219,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -261,12 +260,12 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.SUCCEEDED));
     }
 
     @Test
-    public void updates_an_API_DOCUMENTED() {
+    public void updates_an_API_DOCUMENTED() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -277,9 +276,8 @@ public class DeployModelCommandHandlerTest {
 
         DeployModelCommand command = new DeployModelCommand(payload);
 
-        ApiEntity apiEntity = new ApiEntity();
-        apiEntity.setId("api#id");
-        when(apiService.findByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiEntity));
+        String apiId = "api#id";
+        when(apiSearchService.findIdByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiId));
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -295,7 +293,7 @@ public class DeployModelCommandHandlerTest {
                 GraviteeContext.getExecutionContext(),
                 user.getId(),
                 environment.getId(),
-                apiEntity.getId(),
+                apiId,
                 DeploymentMode.API_DOCUMENTED
             )
         )
@@ -304,7 +302,7 @@ public class DeployModelCommandHandlerTest {
         when(
             cockpitApiService.updateApi(
                 any(),
-                eq(apiEntity.getId()),
+                eq(apiId),
                 eq(user.getId()),
                 eq(payload.getSwaggerDefinition()),
                 eq(environment.getId()),
@@ -322,12 +320,12 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.SUCCEEDED));
     }
 
     @Test
-    public void updates_an_API_MOCKED_mode() {
+    public void updates_an_API_MOCKED_mode() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -338,9 +336,8 @@ public class DeployModelCommandHandlerTest {
 
         DeployModelCommand command = new DeployModelCommand(payload);
 
-        ApiEntity apiEntity = new ApiEntity();
-        apiEntity.setId("api#id");
-        when(apiService.findByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiEntity));
+        String apiId = "api#id";
+        when(apiSearchService.findIdByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiId));
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -356,7 +353,7 @@ public class DeployModelCommandHandlerTest {
                 GraviteeContext.getExecutionContext(),
                 user.getId(),
                 environment.getId(),
-                apiEntity.getId(),
+                apiId,
                 DeploymentMode.API_MOCKED
             )
         )
@@ -365,7 +362,7 @@ public class DeployModelCommandHandlerTest {
         when(
             cockpitApiService.updateApi(
                 any(),
-                eq(apiEntity.getId()),
+                eq(apiId),
                 eq(user.getId()),
                 eq(payload.getSwaggerDefinition()),
                 eq(environment.getId()),
@@ -383,12 +380,12 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.SUCCEEDED));
     }
 
     @Test
-    public void updates_an_API_PUBLISHED_mode() {
+    public void updates_an_API_PUBLISHED_mode() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -399,9 +396,8 @@ public class DeployModelCommandHandlerTest {
 
         DeployModelCommand command = new DeployModelCommand(payload);
 
-        ApiEntity apiEntity = new ApiEntity();
-        apiEntity.setId("api#id");
-        when(apiService.findByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiEntity));
+        String apiId = "api#id";
+        when(apiSearchService.findIdByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiId));
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -417,7 +413,7 @@ public class DeployModelCommandHandlerTest {
                 GraviteeContext.getExecutionContext(),
                 user.getId(),
                 environment.getId(),
-                apiEntity.getId(),
+                apiId,
                 DeploymentMode.API_PUBLISHED
             )
         )
@@ -426,7 +422,7 @@ public class DeployModelCommandHandlerTest {
         when(
             cockpitApiService.updateApi(
                 any(),
-                eq(apiEntity.getId()),
+                eq(apiId),
                 eq(user.getId()),
                 eq(payload.getSwaggerDefinition()),
                 eq(environment.getId()),
@@ -444,12 +440,12 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.SUCCEEDED));
     }
 
     @Test
-    public void handle_null_mode() {
+    public void handle_null_mode() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -459,8 +455,6 @@ public class DeployModelCommandHandlerTest {
 
         DeployModelCommand command = new DeployModelCommand(payload);
 
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
-
         UserEntity user = new UserEntity();
         user.setId("user#id");
         user.setSourceId(payload.getUserId());
@@ -501,12 +495,12 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.SUCCEEDED));
     }
 
     @Test
-    public void handleWithException() {
+    public void handleWithException() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -515,8 +509,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -552,13 +544,13 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertNoErrors();
         obs.assertValue(reply -> reply.getCommandId().equals(command.getId()) && reply.getCommandStatus().equals(CommandStatus.ERROR));
     }
 
     @Test
-    public void fails_to_create_due_to_permission_issues() {
+    public void fails_to_create_due_to_permission_issues() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -567,8 +559,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -584,7 +574,7 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertNoErrors();
         obs.assertValue(
             reply -> {
@@ -598,7 +588,7 @@ public class DeployModelCommandHandlerTest {
     }
 
     @Test
-    public void fails_to_update_due_to_permission_issues() {
+    public void fails_to_update_due_to_permission_issues() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -609,9 +599,8 @@ public class DeployModelCommandHandlerTest {
 
         DeployModelCommand command = new DeployModelCommand(payload);
 
-        ApiEntity apiEntity = new ApiEntity();
-        apiEntity.setId("api#id");
-        when(apiService.findByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiEntity));
+        String apiId = "api#id";
+        when(apiSearchService.findIdByEnvironmentIdAndCrossId(ENVIRONMENT_ID, payload.getModelId())).thenReturn(Optional.of(apiId));
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -627,7 +616,7 @@ public class DeployModelCommandHandlerTest {
                 any(),
                 eq(user.getId()),
                 eq(environment.getId()),
-                eq(apiEntity.getId()),
+                eq(apiId),
                 eq(DeploymentMode.API_DOCUMENTED)
             )
         )
@@ -635,7 +624,7 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertNoErrors();
         obs.assertValue(
             reply -> {
@@ -649,7 +638,7 @@ public class DeployModelCommandHandlerTest {
     }
 
     @Test
-    public void clean_gravitee_context_on_success() {
+    public void clean_gravitee_context_on_success() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -658,8 +647,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -700,15 +687,15 @@ public class DeployModelCommandHandlerTest {
             );
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertNoErrors();
 
-        PowerMockito.verifyStatic(GraviteeContext.class);
+        mockedStaticGraviteeContext.verify(() -> GraviteeContext.getExecutionContext(), times(5));
         GraviteeContext.cleanContext();
     }
 
     @Test
-    public void clean_gravitee_context_on_error() {
+    public void clean_gravitee_context_on_error() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -717,8 +704,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -741,15 +726,15 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertNoErrors();
 
-        PowerMockito.verifyStatic(GraviteeContext.class);
+        mockedStaticGraviteeContext.verify(() -> GraviteeContext.getExecutionContext(), times(3));
         GraviteeContext.cleanContext();
     }
 
     @Test
-    public void fails_to_create_due_to_context_path_already_used() {
+    public void fails_to_create_due_to_context_path_already_used() throws InterruptedException {
         DeployModelPayload payload = new DeployModelPayload();
         payload.setModelId("model#1");
         payload.setSwaggerDefinition("swagger-definition");
@@ -758,8 +743,6 @@ public class DeployModelCommandHandlerTest {
         payload.setLabels(List.of("label1", "label2"));
 
         DeployModelCommand command = new DeployModelCommand(payload);
-
-        when(apiService.exists(payload.getModelId())).thenReturn(false);
 
         UserEntity user = new UserEntity();
         user.setId("user#id");
@@ -795,7 +778,7 @@ public class DeployModelCommandHandlerTest {
 
         TestObserver<DeployModelReply> obs = cut.handle(command).test();
 
-        obs.awaitTerminalEvent();
+        obs.await();
         obs.assertNoErrors();
         obs.assertValue(
             reply -> {

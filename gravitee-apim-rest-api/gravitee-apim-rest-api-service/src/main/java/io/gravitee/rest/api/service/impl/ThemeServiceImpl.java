@@ -47,6 +47,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -61,6 +62,7 @@ public class ThemeServiceImpl extends AbstractService implements ThemeService {
     private static final String DEFAULT_THEME_PATH = "/definition.json";
     private static final String DEFAULT_THEME_ID = "default";
 
+    @Lazy
     @Autowired
     private ThemeRepository themeRepository;
 
@@ -254,6 +256,7 @@ public class ThemeServiceImpl extends AbstractService implements ThemeService {
             theme.setId(DEFAULT_THEME_ID);
             theme.setName("Default theme");
             theme.setDefinition(MAPPER.readDefinition(getDefaultDefinition()));
+            theme.setBackgroundImage(this.getDefaultBackgroundImage());
             theme.setLogo(this.getDefaultLogo());
             theme.setOptionalLogo(this.getDefaultOptionalLogo());
             theme.setFavicon(this.getDefaultFavicon());
@@ -348,6 +351,10 @@ public class ThemeServiceImpl extends AbstractService implements ThemeService {
         }
     }
 
+    public String getDefaultBackgroundImage() {
+        return getImage("background-image.png");
+    }
+
     public String getDefaultLogo() {
         return getImage("logo.png");
     }
@@ -362,8 +369,12 @@ public class ThemeServiceImpl extends AbstractService implements ThemeService {
 
     private String getImage(String filename) {
         String filepath = themesPath + "/" + filename;
+        File imageFile = new File(filepath);
+        if (!imageFile.exists()) {
+            return null;
+        }
         try {
-            byte[] image = Files.readAllBytes(new File(filepath).toPath());
+            byte[] image = Files.readAllBytes(imageFile.toPath());
             MimetypesFileTypeMap fileTypeMap = new MimetypesFileTypeMap();
             return "data:" + fileTypeMap.getContentType(filename) + ";base64," + Base64.getEncoder().encodeToString(image);
         } catch (IOException ex) {

@@ -58,6 +58,16 @@
             <artifactId>gravitee-plugin-core</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>io.gravitee.plugin</groupId>
+            <artifactId>gravitee-plugin-repository</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.gravitee.platform</groupId>
+            <artifactId>gravitee-platform-repository-api</artifactId>
+        </dependency>
+
         <!-- Spring dependencies -->
         <dependency>
             <groupId>org.springframework</groupId>
@@ -72,6 +82,12 @@
                     <artifactId>commons-logging</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

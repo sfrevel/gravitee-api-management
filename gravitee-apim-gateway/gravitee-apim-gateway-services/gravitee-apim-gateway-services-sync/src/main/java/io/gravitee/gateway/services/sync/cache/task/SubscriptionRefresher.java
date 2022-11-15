@@ -15,13 +15,10 @@
  */
 package io.gravitee.gateway.services.sync.cache.task;
 
-import static io.gravitee.repository.management.model.Subscription.Status.*;
-
-import io.gravitee.node.api.cache.Cache;
+import io.gravitee.gateway.api.service.Subscription;
+import io.gravitee.gateway.api.service.SubscriptionService;
 import io.gravitee.repository.management.api.SubscriptionRepository;
 import io.gravitee.repository.management.api.search.SubscriptionCriteria;
-import io.gravitee.repository.management.model.Subscription;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,63 +33,16 @@ public abstract class SubscriptionRefresher implements Callable<Result<Boolean>>
 
     private SubscriptionRepository subscriptionRepository;
 
-    private Cache<String, Object> cache;
+    private SubscriptionService subscriptionService;
 
     protected Result<Boolean> doRefresh(SubscriptionCriteria criteria) {
-        logger.debug("Refresh api-keys");
+        logger.debug("Refresh subscriptions");
 
         try {
-            subscriptionRepository.search(criteria).forEach(this::saveOrUpdate);
-
+            subscriptionRepository.search(criteria).stream().map(this::convertModelSubscriptionToCache).forEach(subscriptionService::save);
             return Result.success(true);
         } catch (Exception ex) {
             return Result.failure(ex);
-        }
-    }
-
-    private void saveOrUpdate(Subscription subscription) {
-        String key = String.format("%s.%s.%s", subscription.getApi(), subscription.getClientId(), subscription.getPlan());
-
-        Object element = cache.get(subscription.getId());
-
-        if ((CLOSED.equals(subscription.getStatus()) || PAUSED.equals(subscription.getStatus())) && element != null) {
-            cache.evict(subscription.getId());
-            String oldKey = (String) element;
-            Subscription eltSubscription = (Subscription) cache.get(oldKey);
-            if (eltSubscription != null && eltSubscription.getId().equals(subscription.getId())) {
-                cache.evict(oldKey);
-
-                final String keyWithoutPlan = String.format("%s.%s.%s", eltSubscription.getApi(), eltSubscription.getClientId(), null);
-                cache.evict(keyWithoutPlan);
-            }
-        } else if (ACCEPTED.equals(subscription.getStatus())) {
-            logger.debug(
-                "Cache a subscription: plan[{}] application[{}] client_id[{}]",
-                subscription.getPlan(),
-                subscription.getApplication(),
-                subscription.getClientId()
-            );
-            cache.put(subscription.getId(), key);
-
-            // Delete useless information to preserve memory
-            subscription.setGeneralConditionsContentPageId(null);
-            subscription.setRequest(null);
-            subscription.setReason(null);
-            subscription.setSubscribedBy(null);
-            subscription.setProcessedBy(null);
-
-            cache.put(key, subscription);
-
-            // Index the subscription without plan id to allow search without plan criteria.
-            final String keyWithoutPlan = String.format("%s.%s.%s", subscription.getApi(), subscription.getClientId(), null);
-            cache.put(keyWithoutPlan, subscription);
-
-            if (element != null) {
-                final String oldKey = (String) element;
-                if (!oldKey.equals(key)) {
-                    cache.evict(oldKey);
-                }
-            }
         }
     }
 
@@ -100,7 +50,28 @@ public abstract class SubscriptionRefresher implements Callable<Result<Boolean>>
         this.subscriptionRepository = subscriptionRepository;
     }
 
-    public void setCache(Cache<String, Object> cache) {
-        this.cache = cache;
+    public void setSubscriptionService(SubscriptionService subscriptionService) {
+        this.subscriptionService = subscriptionService;
+    }
+
+    private Subscription convertModelSubscriptionToCache(io.gravitee.repository.management.model.Subscription subscriptionModel) {
+        Subscription subscription = new Subscription();
+        subscription.setApi(subscriptionModel.getApi());
+        subscription.setApplication(subscriptionModel.getApplication());
+        subscription.setClientId(subscriptionModel.getClientId());
+        subscription.setStartingAt(subscriptionModel.getStartingAt());
+        subscription.setEndingAt(subscriptionModel.getEndingAt());
+        subscription.setId(subscriptionModel.getId());
+        subscription.setPlan(subscriptionModel.getPlan());
+        if (subscriptionModel.getStatus() != null) {
+            subscription.setStatus(subscriptionModel.getStatus().name());
+        }
+        if (subscriptionModel.getType() != null) {
+            subscription.setType(Subscription.Type.valueOf(subscriptionModel.getType().name().toUpperCase()));
+        }
+        subscription.setConfiguration(subscriptionModel.getConfiguration());
+        subscription.setFilter(subscriptionModel.getFilter());
+        subscription.setMetadata(subscriptionModel.getMetadata());
+        return subscription;
     }
 }

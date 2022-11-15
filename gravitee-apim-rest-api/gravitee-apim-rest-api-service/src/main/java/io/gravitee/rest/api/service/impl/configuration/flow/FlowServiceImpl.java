@@ -42,6 +42,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -53,6 +54,7 @@ public class FlowServiceImpl extends AbstractService implements FlowService {
 
     private final Logger LOGGER = LoggerFactory.getLogger(FlowServiceImpl.class);
 
+    @Lazy
     @Autowired
     private FlowRepository flowRepository;
 

@@ -16,9 +16,9 @@
 package io.gravitee.gateway.jupiter.flow;
 
 import io.gravitee.definition.model.flow.Flow;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.reactivex.Flowable;
-import io.reactivex.Maybe;
+import io.gravitee.gateway.jupiter.api.context.GenericExecutionContext;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Maybe;
 
 /**
  * This flow resolver resolves only the {@link Flow} which best matches according to the incoming request.
@@ -37,7 +37,7 @@ public class BestMatchFlowResolver implements FlowResolver {
     }
 
     @Override
-    public Flowable<Flow> resolve(final RequestExecutionContext ctx) {
+    public Flowable<Flow> resolve(final GenericExecutionContext ctx) {
         return provideFlows(ctx)
             .toList()
             .flatMapMaybe(flows -> Maybe.fromCallable(() -> BestMatchFlowSelector.forPath(flows, ctx.request().pathInfo())))
@@ -45,7 +45,7 @@ public class BestMatchFlowResolver implements FlowResolver {
     }
 
     @Override
-    public Flowable<Flow> provideFlows(final RequestExecutionContext ctx) {
+    public Flowable<Flow> provideFlows(final GenericExecutionContext ctx) {
         return flowResolver.resolve(ctx);
     }
 }

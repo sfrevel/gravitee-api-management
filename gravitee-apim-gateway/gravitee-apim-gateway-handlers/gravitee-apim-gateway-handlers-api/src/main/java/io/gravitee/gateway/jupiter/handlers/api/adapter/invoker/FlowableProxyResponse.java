@@ -18,9 +18,9 @@ package io.gravitee.gateway.jupiter.handlers.api.adapter.invoker;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyResponse;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.reactivex.Flowable;
-import io.reactivex.internal.subscriptions.EmptySubscription;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.internal.subscriptions.EmptySubscription;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.reactivestreams.Subscriber;
@@ -36,19 +36,27 @@ public class FlowableProxyResponse extends Flowable<Buffer> {
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
     private ProxyResponse proxyResponse;
-    private RequestExecutionContext ctx;
+    private HttpExecutionContext ctx;
     private ProxyConnection connection;
 
     private Subscription subscription;
     private Subscriber<? super Buffer> subscriber;
+    private Runnable onComplete;
 
-    public void initialize(RequestExecutionContext ctx, ProxyConnection connection, ProxyResponse proxyResponse) {
+    public FlowableProxyResponse initialize(HttpExecutionContext ctx, ProxyConnection connection, ProxyResponse proxyResponse) {
         this.ctx = ctx;
         this.connection = connection;
         this.proxyResponse = proxyResponse;
 
         // Always start by pausing the response.
         pauseProxyResponse();
+
+        return this;
+    }
+
+    public FlowableProxyResponse doOnComplete(Runnable onComplete) {
+        this.onComplete = onComplete;
+        return this;
     }
 
     private void release() {
@@ -68,14 +76,19 @@ public class FlowableProxyResponse extends Flowable<Buffer> {
         this.subscriber = subscriber;
         this.subscription = new ProxyResponseSubscription();
 
-        // Capture all the chunks and write them in the response.
-        proxyResponse.bodyHandler(this::handleChunk);
+        if (proxyResponse != null) {
+            // Capture all the chunks and write them in the response.
+            proxyResponse.bodyHandler(this::handleChunk);
 
-        // When complete, propagate the complete event to the reactive chain.
-        proxyResponse.endHandler(v -> handleEnd());
+            // When complete, propagate the complete event to the reactive chain.
+            proxyResponse.endHandler(v -> handleEnd());
 
-        // Finally, pass the subscription to the subscriber, so it can invoke onNext on it.
-        subscriber.onSubscribe(subscription);
+            // Finally, pass the subscription to the subscriber, so it can invoke onNext on it.
+            subscriber.onSubscribe(subscription);
+        } else {
+            log.debug("Proxy response not defined, completing without any value.");
+            EmptySubscription.complete(subscriber);
+        }
     }
 
     private void handleChunk(Buffer chunk) {
@@ -100,6 +113,9 @@ public class FlowableProxyResponse extends Flowable<Buffer> {
 
     private void handleEnd() {
         release();
+        if (onComplete != null) {
+            onComplete.run();
+        }
         subscriber.onComplete();
     }
 

@@ -4,16 +4,12 @@
 module.exports = {
   // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
   moduleNameMapper: {
-    '@client-conf/(.*)': '<rootDir>/dist/lib/configuration',
-    '@management-fakers/(.*)': '<rootDir>/dist/lib/fixtures/management/$1',
-    '@management-apis/(.*)': '<rootDir>/dist/lib/management-webclient-sdk/src/lib/apis/$1',
-    '@management-models/(.*)': '<rootDir>/dist/lib/management-webclient-sdk/src/lib/models/$1',
-    '@portal-apis/(.*)': '<rootDir>/dist/lib/portal-webclient-sdk/src/lib/apis/$1',
-    '@portal-models/(.*)': '<rootDir>/dist/lib/portal-webclient-sdk/src/lib/models/$1',
-    '@portal-fakers/(.*)': '<rootDir>/dist/lib/fixtures/portal/$1',
     '@api-test-resources/(.*)': '<rootDir>/api-test/resources/$1',
+    '@gravitee/fixtures/(.*)': '<rootDir>/dist/lib/fixtures/$1',
+    '@gravitee/management-webclient-sdk/(.*)': '<rootDir>/dist/lib/management-webclient-sdk/$1',
+    '@gravitee/portal-webclient-sdk/(.*)': '<rootDir>/dist/lib/portal-webclient-sdk/$1',
+    '@gravitee/utils/(.*)': '<rootDir>/dist/lib/utils/$1',
     '@lib/jest-utils': '<rootDir>/dist/lib/jest-utils',
-    '@lib/gateway': '<rootDir>/dist/lib/gateway',
   },
 
   // The test environment that will be used for testing

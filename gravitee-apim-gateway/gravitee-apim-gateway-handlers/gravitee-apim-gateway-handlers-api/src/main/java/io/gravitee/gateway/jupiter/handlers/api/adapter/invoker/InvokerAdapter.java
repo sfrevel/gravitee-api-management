@@ -15,15 +15,20 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.adapter.invoker;
 
-import io.gravitee.gateway.api.ExecutionContext;
+import io.gravitee.common.http.HttpStatusCode;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.stream.ReadStream;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.ExecutionFailure;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.MessageExecutionContext;
 import io.gravitee.gateway.jupiter.api.invoker.Invoker;
+import io.gravitee.gateway.jupiter.core.context.interruption.InterruptionFailureException;
 import io.gravitee.gateway.jupiter.policy.adapter.context.ExecutionContextAdapter;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Flowable;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +44,8 @@ import org.slf4j.LoggerFactory;
  */
 public class InvokerAdapter implements Invoker, io.gravitee.gateway.api.Invoker {
 
-    private final Logger log = LoggerFactory.getLogger(InvokerAdapter.class);
+    private static final Logger log = LoggerFactory.getLogger(InvokerAdapter.class);
+    static final String GATEWAY_CLIENT_CONNECTION_ERROR = "GATEWAY_CLIENT_CONNECTION_ERROR";
 
     private final io.gravitee.gateway.api.Invoker legacyInvoker;
     private final String id;
@@ -55,33 +61,55 @@ public class InvokerAdapter implements Invoker, io.gravitee.gateway.api.Invoker 
     }
 
     @Override
-    public Completable invoke(RequestExecutionContext ctx) {
-        return Completable.create(
-            nextEmitter -> {
-                log.debug("Executing invoker {}", id);
-                final ExecutionContextAdapter ctxAdapter = ExecutionContextAdapter.create(ctx);
+    public Completable invoke(ExecutionContext ctx) {
+        final ExecutionContextAdapter adaptedCtx = ExecutionContextAdapter.create(ctx);
+        return Completable
+            .create(
+                nextEmitter -> {
+                    log.debug("Executing invoker {}", id);
 
-                // Stream adapter allowing to write the request content to the upstream.
-                final ReadWriteStreamAdapter streamAdapter = new ReadWriteStreamAdapter(ctxAdapter, nextEmitter);
+                    // Http status set to 0 to reflect the fact we are waiting for the backend http status.
+                    ctx.response().status(0);
 
-                // Connection handler adapter to receive the response from the invoker.
-                final ConnectionHandlerAdapter connectionHandlerAdapter = new ConnectionHandlerAdapter(ctx, nextEmitter);
+                    // Stream adapter allowing to write the request content to the upstream.
+                    final ReadWriteStreamAdapter streamAdapter = new ReadWriteStreamAdapter(adaptedCtx, nextEmitter);
 
-                // Assign the chunks from the connection handler to the response.
-                ctx.response().chunks(connectionHandlerAdapter.getChunks());
+                    // Connection handler adapter to receive the response from the invoker.
+                    final ConnectionHandlerAdapter connectionHandlerAdapter = new ConnectionHandlerAdapter(ctx, nextEmitter);
 
-                try {
-                    // Invoke to make the connection happen.
-                    legacyInvoker.invoke(ctxAdapter, streamAdapter, connectionHandlerAdapter);
-                } catch (Throwable t) {
-                    nextEmitter.tryOnError(new Exception("An error occurred while trying to execute invoker " + id, t));
+                    // Assign the chunks from the connection handler to the response.
+                    ctx.response().chunks(connectionHandlerAdapter.getChunks());
+
+                    try {
+                        // Invoke to make the connection happen.
+                        invoke(adaptedCtx, streamAdapter, connectionHandlerAdapter);
+                    } catch (Throwable t) {
+                        nextEmitter.tryOnError(new Exception("An error occurred while trying to execute invoker " + id, t));
+                    }
                 }
-            }
-        );
+            )
+            .doFinally(adaptedCtx::restore)
+            .onErrorResumeNext(
+                throwable -> {
+                    // In case of any error, make sure to reset the response content.
+                    ctx.response().chunks(Flowable.empty());
+
+                    if (throwable instanceof InterruptionFailureException) {
+                        return ctx.interruptWith(((InterruptionFailureException) throwable).getExecutionFailure());
+                    } else {
+                        log.error("An error occurred when invoking the backend.", throwable);
+                        return ctx.interruptWith(new ExecutionFailure(HttpStatusCode.BAD_GATEWAY_502).key(GATEWAY_CLIENT_CONNECTION_ERROR));
+                    }
+                }
+            );
     }
 
     @Override
-    public void invoke(ExecutionContext context, ReadStream<Buffer> stream, Handler<ProxyConnection> connectionHandler) {
+    public void invoke(
+        io.gravitee.gateway.api.ExecutionContext context,
+        ReadStream<Buffer> stream,
+        Handler<ProxyConnection> connectionHandler
+    ) {
         legacyInvoker.invoke(context, stream, connectionHandler);
     }
 }

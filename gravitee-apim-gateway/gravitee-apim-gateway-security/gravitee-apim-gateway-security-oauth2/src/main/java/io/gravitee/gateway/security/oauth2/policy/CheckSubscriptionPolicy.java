@@ -21,17 +21,12 @@ import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.http.HttpStatusCode;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.Response;
+import io.gravitee.gateway.api.service.SubscriptionService;
 import io.gravitee.gateway.policy.Policy;
 import io.gravitee.gateway.policy.PolicyException;
 import io.gravitee.policy.api.PolicyChain;
 import io.gravitee.policy.api.PolicyResult;
-import io.gravitee.repository.exceptions.TechnicalException;
-import io.gravitee.repository.management.api.SubscriptionRepository;
-import io.gravitee.repository.management.api.search.SubscriptionCriteria;
-import io.gravitee.repository.management.model.Subscription;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import java.util.Optional;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -44,20 +39,22 @@ public class CheckSubscriptionPolicy implements Policy {
 
     static final String CONTEXT_ATTRIBUTE_CLIENT_ID = "oauth.client_id";
     static final String BEARER_AUTHORIZATION_TYPE = "Bearer";
+    static final String GATEWAY_OAUTH2_ACCESS_DENIED_KEY = "GATEWAY_OAUTH2_ACCESS_DENIED";
+    static final String GATEWAY_OAUTH2_INVALID_CLIENT_KEY = "GATEWAY_OAUTH2_INVALID_CLIENT";
 
     private static final String OAUTH2_ERROR_ACCESS_DENIED = "access_denied";
-    private static final String OAUTH2_ERROR_SERVER_ERROR = "server_error";
 
-    static final String GATEWAY_OAUTH2_ACCESS_DENIED_KEY = "GATEWAY_OAUTH2_ACCESS_DENIED";
-    static final String GATEWAY_OAUTH2_SERVER_ERROR_KEY = "GATEWAY_OAUTH2_SERVER_ERROR";
-    static final String GATEWAY_OAUTH2_INVALID_CLIENT_KEY = "GATEWAY_OAUTH2_INVALID_CLIENT";
+    private static final String OAUTH2_ERROR_SERVER_ERROR = "server_error";
 
     @Override
     public void execute(PolicyChain policyChain, ExecutionContext executionContext) throws PolicyException {
-        SubscriptionRepository subscriptionRepository = executionContext.getComponent(SubscriptionRepository.class);
+        SubscriptionService subscriptionService = executionContext.getComponent(SubscriptionService.class);
 
-        // Get plan and client_id from execution context
-        String clientId = (String) executionContext.getAttribute(CONTEXT_ATTRIBUTE_CLIENT_ID);
+        final String api = (String) executionContext.getAttribute(ExecutionContext.ATTR_API);
+        final String clientId = (String) executionContext.getAttribute(CONTEXT_ATTRIBUTE_CLIENT_ID);
+        final String plan = (String) executionContext.getAttribute(ExecutionContext.ATTR_PLAN);
+
+        // client_id is mandatory
         if (clientId == null || clientId.trim().isEmpty()) {
             sendError(
                 GATEWAY_OAUTH2_INVALID_CLIENT_KEY,
@@ -72,47 +69,35 @@ public class CheckSubscriptionPolicy implements Policy {
         executionContext.request().metrics().setSecurityType(OAUTH2);
         executionContext.request().metrics().setSecurityToken(clientId);
 
-        String api = (String) executionContext.getAttribute(ExecutionContext.ATTR_API);
+        // FIXME: Use plan instead of `null` to properly handle plan selection in multi-plan context
+        Optional<io.gravitee.gateway.api.service.Subscription> optionalSubscription = subscriptionService.getByApiAndClientIdAndPlan(
+            api,
+            clientId,
+            null
+        );
 
-        try {
-            final String plan = (String) executionContext.getAttribute(ExecutionContext.ATTR_PLAN);
-            final List<Subscription> subscriptions = subscriptionRepository.search(
-                new SubscriptionCriteria.Builder()
-                    .apis(Collections.singleton(api))
-                    .clientId(clientId)
-                    .status(Subscription.Status.ACCEPTED)
-                    .build()
+        if (optionalSubscription.isPresent()) {
+            final boolean selectionRuleBasedPlan = Boolean.TRUE.equals(
+                executionContext.getAttribute(CONTEXT_ATTRIBUTE_PLAN_SELECTION_RULE_BASED)
             );
 
-            if (subscriptions != null && !subscriptions.isEmpty()) {
-                final boolean selectionRuleBasedPlan = Boolean.TRUE.equals(
-                    executionContext.getAttribute(CONTEXT_ATTRIBUTE_PLAN_SELECTION_RULE_BASED)
-                );
-                final Subscription subscription = !selectionRuleBasedPlan
-                    ? subscriptions.get(0)
-                    : subscriptions.stream().filter(sub -> sub.getPlan().equals(plan)).findAny().orElse(null);
-                if (
-                    subscription != null &&
-                    (
-                        subscription.getEndingAt() == null ||
-                        subscription.getEndingAt().after(new Date(executionContext.request().timestamp()))
-                    )
-                ) {
-                    executionContext.setAttribute(ExecutionContext.ATTR_APPLICATION, subscription.getApplication());
-                    executionContext.setAttribute(ExecutionContext.ATTR_SUBSCRIPTION_ID, subscription.getId());
-                    executionContext.setAttribute(ExecutionContext.ATTR_PLAN, subscription.getPlan());
+            final io.gravitee.gateway.api.service.Subscription subscription = optionalSubscription
+                // FIXME: Remove `!selectionRuleBasedPlan` wild behavior when plan selection based on rules will be fixed
+                .filter(sub -> !selectionRuleBasedPlan || sub.getPlan().equals(plan))
+                .orElse(null);
 
-                    policyChain.doNext(executionContext.request(), executionContext.response());
-                    return;
-                }
+            if (subscription != null && subscription.isTimeValid(executionContext.request().timestamp())) {
+                executionContext.setAttribute(ExecutionContext.ATTR_APPLICATION, subscription.getApplication());
+                executionContext.setAttribute(ExecutionContext.ATTR_SUBSCRIPTION_ID, subscription.getId());
+                executionContext.setAttribute(ExecutionContext.ATTR_PLAN, subscription.getPlan());
+
+                policyChain.doNext(executionContext.request(), executionContext.response());
+                return;
             }
-
-            // As per https://tools.ietf.org/html/rfc6749#section-4.1.2.1
-            sendUnauthorized(GATEWAY_OAUTH2_ACCESS_DENIED_KEY, policyChain, OAUTH2_ERROR_ACCESS_DENIED);
-        } catch (TechnicalException te) {
-            // As per https://tools.ietf.org/html/rfc6749#section-4.1.2.1
-            sendUnauthorized(GATEWAY_OAUTH2_SERVER_ERROR_KEY, policyChain, OAUTH2_ERROR_SERVER_ERROR);
         }
+
+        // As per https://tools.ietf.org/html/rfc6749#section-4.1.2.1
+        sendUnauthorized(GATEWAY_OAUTH2_ACCESS_DENIED_KEY, policyChain, OAUTH2_ERROR_ACCESS_DENIED);
     }
 
     private void sendUnauthorized(String key, PolicyChain policyChain, String description) {

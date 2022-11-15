@@ -23,8 +23,10 @@ import static java.util.stream.Collectors.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.gravitee.common.http.HttpMethod;
+import io.gravitee.definition.model.DefinitionContext;
 import io.gravitee.definition.model.DefinitionVersion;
 import io.gravitee.definition.model.Proxy;
 import io.gravitee.definition.model.VirtualHost;
@@ -843,10 +845,12 @@ public class ApiDuplicatorServiceImpl extends AbstractService implements ApiDupl
     }
 
     private void recalculateIdsFromDefinitionIds(String environmentId, ImportApiJsonNode apiJsonNode, String urlApiId) {
-        String targetApiId = urlApiId == null ? UuidString.generateForEnvironment(environmentId, apiJsonNode.getId()) : urlApiId;
-        apiJsonNode.setId(targetApiId);
-        recalculatePlanIdsFromDefinitionIds(apiJsonNode.getPlans(), environmentId, targetApiId);
-        recalculatePageIdsFromDefinitionIds(apiJsonNode.getPages(), environmentId, targetApiId);
+        if (canRegenerateId(apiJsonNode)) {
+            String targetApiId = urlApiId == null ? UuidString.generateForEnvironment(environmentId, apiJsonNode.getId()) : urlApiId;
+            apiJsonNode.setId(targetApiId);
+            recalculatePlanIdsFromDefinitionIds(apiJsonNode.getPlans(), environmentId, targetApiId);
+            recalculatePageIdsFromDefinitionIds(apiJsonNode.getPages(), environmentId, targetApiId);
+        }
     }
 
     private void recalculatePlanIdsFromDefinitionIds(List<ImportJsonNodeWithIds> plansNodes, String environmentId, String apiId) {
@@ -874,6 +878,11 @@ public class ApiDuplicatorServiceImpl extends AbstractService implements ApiDupl
                     updatePagesHierarchy(pagesNodes, pageId, generatedPageId);
                 }
             );
+    }
+
+    private boolean canRegenerateId(ImportApiJsonNode apiJsonNode) {
+        // If the definition is managed by kubernetes, do not try to recalculate ids because k8s is the source of truth.
+        return !DefinitionContext.ORIGIN_KUBERNETES.equalsIgnoreCase(apiJsonNode.getDefinitionContextOrigin());
     }
 
     private void updatePagesHierarchy(List<ImportJsonNodeWithIds> pagesNodes, String parentId, String newParentId) {

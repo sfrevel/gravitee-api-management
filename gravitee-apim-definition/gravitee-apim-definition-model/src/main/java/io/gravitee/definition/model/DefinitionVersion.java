@@ -21,15 +21,18 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 
 /**
  * @author Guillaume CUSNIEUX (guillaume.cusnieux@graviteesource.com)
  * @author GraviteeSource Team
  */
+@RequiredArgsConstructor
 public enum DefinitionVersion {
     @JsonEnumDefaultValue
     V1("1.0.0"),
-    V2("2.0.0");
+    V2("2.0.0"),
+    V4("4.0.0");
 
     private static final Map<String, DefinitionVersion> BY_LABEL = new HashMap<>();
 
@@ -39,27 +42,26 @@ public enum DefinitionVersion {
         }
     }
 
-    @JsonValue
     private final String label;
-
-    DefinitionVersion(String label) {
-        this.label = label;
-    }
 
     @JsonCreator
     public static DefinitionVersion valueOfLabel(String label) {
         return BY_LABEL.get(label);
     }
 
-    public String getLabel() {
-        return label;
-    }
-
     public static Set<String> versions() {
         return BY_LABEL.keySet();
     }
 
+    // First argument is a regex so ignore sonar because of false positive
+    @SuppressWarnings("java:S5361")
     public Integer asInteger() {
         return Integer.valueOf(label.replaceAll("\\.", ""));
+    }
+
+    // @JsonValue on the getter instead of attribute makes enum values relevant in generated openapi file
+    @JsonValue
+    public String getLabel() {
+        return label;
     }
 }

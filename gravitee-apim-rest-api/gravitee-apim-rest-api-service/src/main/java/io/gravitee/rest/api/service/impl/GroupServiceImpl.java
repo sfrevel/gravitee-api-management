@@ -47,6 +47,7 @@ import io.gravitee.rest.api.model.permissions.RolePermission;
 import io.gravitee.rest.api.model.permissions.RoleScope;
 import io.gravitee.rest.api.model.permissions.SystemRole;
 import io.gravitee.rest.api.model.settings.ApiPrimaryOwnerMode;
+import io.gravitee.rest.api.model.v4.api.GenericApiEntity;
 import io.gravitee.rest.api.service.AuditService;
 import io.gravitee.rest.api.service.GroupService;
 import io.gravitee.rest.api.service.InvitationService;
@@ -68,11 +69,11 @@ import io.gravitee.rest.api.service.notification.NotificationParamsBuilder;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -84,12 +85,15 @@ public class GroupServiceImpl extends AbstractService implements GroupService {
 
     private final Logger logger = LoggerFactory.getLogger(GroupServiceImpl.class);
 
+    @Lazy
     @Autowired
     private GroupRepository groupRepository;
 
+    @Lazy
     @Autowired
     private ApiRepository apiRepository;
 
+    @Lazy
     @Autowired
     private ApplicationRepository applicationRepository;
 
@@ -111,12 +115,15 @@ public class GroupServiceImpl extends AbstractService implements GroupService {
     @Autowired
     private InvitationService invitationService;
 
+    @Lazy
     @Autowired
     private PageRepository pageRepository;
 
+    @Lazy
     @Autowired
     private PlanRepository planRepository;
 
+    @Lazy
     @Autowired
     private IdentityProviderRepository identityProviderRepository;
 
@@ -733,7 +740,7 @@ public class GroupServiceImpl extends AbstractService implements GroupService {
     }
 
     @Override
-    public boolean isUserAuthorizedToAccessApiData(ApiEntity api, List<String> excludedGroups, String username) {
+    public boolean isUserAuthorizedToAccessApiData(GenericApiEntity api, List<String> excludedGroups, String username) {
         // in anonymous mode
         if (username == null) {
             // only public API without restrictions are authorized

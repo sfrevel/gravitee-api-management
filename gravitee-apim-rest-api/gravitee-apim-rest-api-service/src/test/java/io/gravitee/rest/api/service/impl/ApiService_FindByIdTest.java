@@ -28,6 +28,10 @@ import io.gravitee.repository.management.api.ApiRepository;
 import io.gravitee.repository.management.model.Api;
 import io.gravitee.repository.management.model.flow.FlowReferenceType;
 import io.gravitee.rest.api.model.*;
+import io.gravitee.rest.api.model.MembershipEntity;
+import io.gravitee.rest.api.model.MembershipReferenceType;
+import io.gravitee.rest.api.model.PrimaryOwnerEntity;
+import io.gravitee.rest.api.model.UserEntity;
 import io.gravitee.rest.api.model.api.ApiEntity;
 import io.gravitee.rest.api.service.*;
 import io.gravitee.rest.api.service.common.GraviteeContext;
@@ -36,6 +40,9 @@ import io.gravitee.rest.api.service.converter.ApiConverter;
 import io.gravitee.rest.api.service.exceptions.ApiNotFoundException;
 import io.gravitee.rest.api.service.exceptions.TechnicalManagementException;
 import io.gravitee.rest.api.service.jackson.filter.ApiPermissionFilter;
+import io.gravitee.rest.api.service.v4.ApiEntrypointService;
+import io.gravitee.rest.api.service.v4.PrimaryOwnerService;
+import io.gravitee.rest.api.service.v4.mapper.CategoryMapper;
 import java.util.*;
 import org.junit.After;
 import org.junit.Before;
@@ -43,6 +50,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -78,7 +86,7 @@ public class ApiService_FindByIdTest {
     private ParameterService parameterService;
 
     @Mock
-    private EntrypointService entrypointService;
+    private ApiEntrypointService apiEntrypointService;
 
     @Mock
     private CategoryService categoryService;
@@ -90,10 +98,16 @@ public class ApiService_FindByIdTest {
     private FlowService flowService;
 
     @Spy
-    private ApiConverter apiConverter;
+    private CategoryMapper categoryMapper = new CategoryMapper(mock(CategoryService.class));
+
+    @InjectMocks
+    private ApiConverter apiConverter = Mockito.spy(new ApiConverter());
 
     @Mock
     private RoleService roleService;
+
+    @Mock
+    private PrimaryOwnerService primaryOwnerService;
 
     @Before
     public void setUp() {
@@ -118,9 +132,9 @@ public class ApiService_FindByIdTest {
         when(apiRepository.findById(API_ID)).thenReturn(Optional.of(api));
         MembershipEntity po = new MembershipEntity();
         po.setMemberId(USER_NAME);
-        when(membershipService.getPrimaryOwner(GraviteeContext.getCurrentOrganization(), MembershipReferenceType.API, API_ID))
-            .thenReturn(po);
-        when(userService.findById(GraviteeContext.getExecutionContext(), USER_NAME)).thenReturn(mock(UserEntity.class));
+        UserEntity userEntity = new UserEntity();
+        userEntity.setId("user");
+        when(primaryOwnerService.getPrimaryOwner(any(), any())).thenReturn(new PrimaryOwnerEntity(userEntity));
 
         final ApiEntity apiEntity = apiService.findById(GraviteeContext.getExecutionContext(), API_ID);
 
@@ -143,9 +157,7 @@ public class ApiService_FindByIdTest {
 
         MembershipEntity po = new MembershipEntity();
         po.setMemberId(USER_NAME);
-        when(membershipService.getPrimaryOwner(GraviteeContext.getCurrentOrganization(), MembershipReferenceType.API, API_ID))
-            .thenReturn(po);
-        when(userService.findById(GraviteeContext.getExecutionContext(), USER_NAME)).thenReturn(mock(UserEntity.class));
+        when(primaryOwnerService.getPrimaryOwner(any(), eq(API_ID))).thenReturn(new PrimaryOwnerEntity(new UserEntity()));
 
         final ApiEntity apiEntity = apiService.findById(GraviteeContext.getExecutionContext(), API_ID);
 
@@ -166,33 +178,5 @@ public class ApiService_FindByIdTest {
         when(apiRepository.findById(API_ID)).thenThrow(TechnicalException.class);
 
         apiService.findById(GraviteeContext.getExecutionContext(), API_ID);
-    }
-
-    @Test
-    public void shouldFindByEnvironmentAndIdIn() {
-        api = new Api();
-        api.setId(API_ID);
-        api.setEnvironmentId("DEFAULT");
-
-        MembershipEntity po = new MembershipEntity();
-        po.setMemberId(USER_NAME);
-
-        when(membershipService.getMembersByReferencesAndRole(any(), any(), any(), any())).thenReturn(Set.of(mock(MemberEntity.class)));
-        when(roleService.findPrimaryOwnerRoleByOrganization(any(), any())).thenReturn(mock(RoleEntity.class));
-        when(apiRepository.search(any())).thenReturn(Arrays.asList(api));
-
-        final Set<ApiEntity> apiEntities = apiService.findByEnvironmentAndIdIn(GraviteeContext.getExecutionContext(), Set.of(API_ID));
-
-        assertNotNull(apiEntities);
-        assertEquals(1, apiEntities.size());
-    }
-
-    @Test
-    public void shouldFindByEnvironmentAndEmptyIdIn() {
-        final Set<ApiEntity> apiEntities = apiService.findByEnvironmentAndIdIn(GraviteeContext.getExecutionContext(), Set.of());
-
-        assertNotNull(apiEntities);
-        assertEquals(0, apiEntities.size());
-        verify(apiRepository, times(0)).search(any());
     }
 }

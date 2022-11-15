@@ -15,12 +15,12 @@
  */
 package io.gravitee.gateway.jupiter.policy;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import io.gravitee.definition.model.ExecutionMode;
 import io.gravitee.definition.model.flow.Flow;
 import io.gravitee.definition.model.flow.Step;
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
@@ -49,7 +49,7 @@ class DefaultPolicyChainFactoryTest {
 
     @BeforeEach
     public void init() {
-        cut = new DefaultPolicyChainFactory("unit-test", new SpringEnvironmentConfiguration(new StandardEnvironment()), policyManager);
+        cut = new DefaultPolicyChainFactory("unit-test", policyManager, new SpringEnvironmentConfiguration(new StandardEnvironment()));
     }
 
     @Test
@@ -94,7 +94,8 @@ class DefaultPolicyChainFactoryTest {
                     metadata ->
                         metadata.getName().equals("policy-step2") &&
                         metadata.getConfiguration().equals("config-step2") &&
-                        metadata.getCondition().equals("condition-step2")
+                        metadata.getCondition().equals("condition-step2") &&
+                        metadata.metadata().get(PolicyMetadata.MetadataKeys.EXECUTION_MODE).equals(ExecutionMode.JUPITER)
                 )
             );
 
@@ -128,7 +129,8 @@ class DefaultPolicyChainFactoryTest {
                     metadata ->
                         metadata.getName().equals("policy-step2") &&
                         metadata.getConfiguration().equals("config-step2") &&
-                        metadata.getCondition().equals("condition-step2")
+                        metadata.getCondition().equals("condition-step2") &&
+                        metadata.metadata().get(PolicyMetadata.MetadataKeys.EXECUTION_MODE).equals(ExecutionMode.JUPITER)
                 )
             );
 
@@ -167,7 +169,8 @@ class DefaultPolicyChainFactoryTest {
                     metadata ->
                         metadata.getName().equals("policy-step1") &&
                         metadata.getConfiguration().equals("config-step1") &&
-                        metadata.getCondition().equals("condition-step1")
+                        metadata.getCondition().equals("condition-step1") &&
+                        metadata.metadata().get(PolicyMetadata.MetadataKeys.EXECUTION_MODE).equals(ExecutionMode.JUPITER)
                 )
             );
 
@@ -178,7 +181,8 @@ class DefaultPolicyChainFactoryTest {
                     metadata ->
                         metadata.getName().equals("policy-step2") &&
                         metadata.getConfiguration().equals("config-step2") &&
-                        metadata.getCondition().equals("condition-step2")
+                        metadata.getCondition().equals("condition-step2") &&
+                        metadata.metadata().get(PolicyMetadata.MetadataKeys.EXECUTION_MODE).equals(ExecutionMode.JUPITER)
                 )
             );
 
@@ -230,5 +234,15 @@ class DefaultPolicyChainFactoryTest {
         verify(policyManager, times(2)).create(eq(ExecutionPhase.REQUEST), any(PolicyMetadata.class));
 
         verifyNoMoreInteractions(policyManager);
+    }
+
+    @Test
+    public void shouldNoCreateAnyPolicyWhenUnsupportedPhase() {
+        final Flow flow = mock(Flow.class);
+
+        final PolicyChain policyChain = cut.create("fowchain-test", flow, ExecutionPhase.MESSAGE_REQUEST);
+        assertNotNull(policyChain);
+
+        verifyNoInteractions(policyManager);
     }
 }

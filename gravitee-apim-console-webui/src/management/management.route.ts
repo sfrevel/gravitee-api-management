@@ -58,12 +58,6 @@ function managementRouterConfig($stateProvider) {
         docs: {
           page: 'management-dashboard-home',
         },
-        menu: {
-          label: 'Dashboard',
-          icon: 'home',
-          firstLevel: true,
-          order: 0,
-        },
       },
     })
     .state('management.dashboard.apis-status', {
@@ -148,12 +142,6 @@ function managementRouterConfig($stateProvider) {
         instances: (InstancesService: InstancesService) => InstancesService.search().then((response) => response.data),
       },
       data: {
-        menu: {
-          label: 'Gateways',
-          icon: 'developer_dashboard',
-          firstLevel: true,
-          order: 30,
-        },
         perms: {
           only: ['environment-instance-r'],
         },
@@ -162,45 +150,8 @@ function managementRouterConfig($stateProvider) {
         },
       },
     })
-    .state('management.instances.detail', {
-      abstract: true,
-      url: '/:instanceId',
-      component: 'instance',
-      resolve: {
-        instance: ($stateParams, InstancesService: InstancesService) =>
-          InstancesService.get($stateParams.instanceId).then((response) => response.data),
-      },
-    })
-    .state('management.instances.detail.environment', {
-      url: '/environment',
-      component: 'instanceEnvironment',
-      data: {
-        menu: {
-          label: 'Environment',
-          icon: 'computer',
-        },
-        docs: {
-          page: 'management-gateway-environment',
-        },
-      },
-    })
-    .state('management.instances.detail.monitoring', {
-      url: '/monitoring',
-      component: 'instanceMonitoring',
-      data: {
-        menu: {
-          label: 'Monitoring',
-          icon: 'graphic_eq',
-        },
-        docs: {
-          page: 'management-gateway-monitoring',
-        },
-      },
-      resolve: {
-        monitoringData: ($stateParams, InstancesService: InstancesService, instance: any) =>
-          InstancesService.getMonitoringData($stateParams.instanceId, instance.id).then((response) => response.data),
-      },
-    })
+    // 'management.instances.detail' has been moved to src/management/instances/instance-details/instance-details.module.ts
+
     .state('management.logs', {
       url: '/logs?from&to&q&page&size',
       component: 'platformLogs',
@@ -264,12 +215,6 @@ function managementRouterConfig($stateProvider) {
       component: 'ngEnvAudit',
       data: {
         useAngularMaterial: true,
-        menu: {
-          label: 'Audit',
-          icon: 'visibility',
-          firstLevel: true,
-          order: 50,
-        },
         perms: {
           only: ['environment-audit-r'],
         },
@@ -282,12 +227,6 @@ function managementRouterConfig($stateProvider) {
       url: '/messages',
       component: 'messages',
       data: {
-        menu: {
-          label: 'Messages',
-          icon: 'message',
-          firstLevel: true,
-          order: 50,
-        },
         perms: {
           only: ['environment-message-c'],
         },

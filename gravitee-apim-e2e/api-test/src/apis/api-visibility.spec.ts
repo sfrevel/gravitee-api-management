@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { APIsApi } from '@management-apis/APIsApi';
-import { ApiApi } from '@portal-apis/ApiApi';
+import { APIsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIsApi';
+import { ApiApi } from '@gravitee/portal-webclient-sdk/src/lib/apis/ApiApi';
 import {
   forManagementAsApiUser,
   forPortalAsAdminUser,
@@ -22,18 +22,18 @@ import {
   forPortalAsApiUser,
   forPortalAsAppUser,
   forPortalAsSimpleUser,
-} from '@client-conf/*';
+} from '@gravitee/utils/configuration';
 import { afterAll, beforeAll, describe, expect } from '@jest/globals';
-import { ApisFaker } from '@management-fakers/ApisFaker';
-import { ApiEntity } from '@management-models/ApiEntity';
+import { ApisFaker } from '@gravitee/fixtures/management/ApisFaker';
+import { ApiEntity } from '@gravitee/management-webclient-sdk/src/lib/models/ApiEntity';
 import { fail, succeed } from '@lib/jest-utils';
-import { ApiLifecycleState } from '@management-models/ApiLifecycleState';
-import { SearchableUser } from '@management-models/SearchableUser';
-import { UsersApi } from '@management-apis/UsersApi';
+import { ApiLifecycleState } from '@gravitee/management-webclient-sdk/src/lib/models/ApiLifecycleState';
+import { SearchableUser } from '@gravitee/management-webclient-sdk/src/lib/models/SearchableUser';
+import { UsersApi } from '@gravitee/management-webclient-sdk/src/lib/apis/UsersApi';
 import { find } from 'lodash';
-import { APIMembershipsApi } from '@management-apis/APIMembershipsApi';
-import { UpdateApiEntity, UpdateApiEntityFromJSON } from '@management-models/UpdateApiEntity';
-import { Visibility } from '@management-models/Visibility';
+import { APIMembershipsApi } from '@gravitee/management-webclient-sdk/src/lib/apis/APIMembershipsApi';
+import { UpdateApiEntity, UpdateApiEntityFromJSON } from '@gravitee/management-webclient-sdk/src/lib/models/UpdateApiEntity';
+import { Visibility } from '@gravitee/management-webclient-sdk/src/lib/models/Visibility';
 
 const orgId = 'DEFAULT';
 const envId = 'DEFAULT';

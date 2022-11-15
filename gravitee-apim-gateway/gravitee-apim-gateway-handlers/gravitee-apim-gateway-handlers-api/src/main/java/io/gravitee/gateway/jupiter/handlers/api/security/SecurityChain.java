@@ -16,18 +16,28 @@
 package io.gravitee.gateway.jupiter.handlers.api.security;
 
 import static io.gravitee.common.http.HttpStatusCode.UNAUTHORIZED_401;
-import static io.reactivex.Completable.defer;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_FLOW_STAGE;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_SECURITY_TOKEN;
+import static io.reactivex.rxjava3.core.Completable.defer;
+import static io.reactivex.rxjava3.core.Completable.defer;
 
-import io.gravitee.gateway.handlers.api.definition.Api;
+import io.gravitee.definition.model.Api;
 import io.gravitee.gateway.jupiter.api.ExecutionFailure;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.handlers.api.security.handler.SecurityPlan;
-import io.gravitee.gateway.jupiter.handlers.api.security.handler.SecurityPlanFactory;
+import io.gravitee.gateway.jupiter.api.ExecutionPhase;
+import io.gravitee.gateway.jupiter.api.context.ContextAttributes;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
+import io.gravitee.gateway.jupiter.api.hook.Hookable;
+import io.gravitee.gateway.jupiter.api.hook.SecurityPlanHook;
+import io.gravitee.gateway.jupiter.core.hook.HookHelper;
+import io.gravitee.gateway.jupiter.handlers.api.security.plan.SecurityPlan;
+import io.gravitee.gateway.jupiter.handlers.api.security.plan.SecurityPlanFactory;
 import io.gravitee.gateway.jupiter.policy.PolicyManager;
-import io.reactivex.Completable;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Single;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -42,17 +52,20 @@ import org.slf4j.LoggerFactory;
  * @author Jeoffrey HAEYAERT (jeoffrey.haeyaert at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class SecurityChain {
+public class SecurityChain implements Hookable<SecurityPlanHook> {
 
-    public static final String SKIP_SECURITY_CHAIN = "skip-security-chain";
     protected static final String PLAN_UNRESOLVABLE = "GATEWAY_PLAN_UNRESOLVABLE";
     protected static final String UNAUTHORIZED_MESSAGE = "Unauthorized";
-    protected static final Single<Boolean> TRUE = Single.just(true), FALSE = Single.just(false);
+    protected static final Single<Boolean> TRUE = Single.just(true);
+    protected static final Single<Boolean> FALSE = Single.just(false);
     private static final Logger log = LoggerFactory.getLogger(SecurityChain.class);
     private final Flowable<SecurityPlan> chain;
+    private final ExecutionPhase executionPhase;
 
-    public SecurityChain(Api api, PolicyManager policyManager) {
-        chain =
+    private List<SecurityPlanHook> securityPlanHooks;
+
+    public SecurityChain(Api api, PolicyManager policyManager, ExecutionPhase executionPhase) {
+        this(
             Flowable.fromIterable(
                 api
                     .getPlans()
@@ -61,7 +74,14 @@ public class SecurityChain {
                     .filter(Objects::nonNull)
                     .sorted(Comparator.comparingInt(SecurityPlan::order))
                     .collect(Collectors.toList())
-            );
+            ),
+            executionPhase
+        );
+    }
+
+    public SecurityChain(Flowable<SecurityPlan> securityPlans, ExecutionPhase executionPhase) {
+        this.chain = securityPlans;
+        this.executionPhase = executionPhase;
     }
 
     /**
@@ -75,16 +95,17 @@ public class SecurityChain {
      * @return a {@link Completable} that completes if the request has been successfully handled by a {@link SecurityPlan} or returns
      * an error if no {@link SecurityPlan} can execute the request or the {@link SecurityPlan} failed.
      */
-    public Completable execute(RequestExecutionContext ctx) {
+    public Completable execute(ExecutionContext ctx) {
         return defer(
             () -> {
-                if (!Objects.equals(true, ctx.getAttribute(SKIP_SECURITY_CHAIN))) {
+                if (!Objects.equals(true, ctx.getAttribute(ContextAttributes.ATTR_SKIP_SECURITY_CHAIN))) {
                     return chain
                         .flatMapSingle(policy -> continueChain(ctx, policy), false, 1)
                         .any(Boolean::booleanValue)
                         .flatMapCompletable(
                             securityHandled -> {
-                                if (!securityHandled) {
+                                ctx.removeInternalAttribute(ATTR_INTERNAL_SECURITY_TOKEN);
+                                if (Boolean.FALSE.equals(securityHandled)) {
                                     return ctx.interruptWith(
                                         new ExecutionFailure(UNAUTHORIZED_401).key(PLAN_UNRESOLVABLE).message(UNAUTHORIZED_MESSAGE)
                                     );
@@ -92,7 +113,13 @@ public class SecurityChain {
                                 return Completable.complete();
                             }
                         )
-                        .doOnSubscribe(disposable -> log.debug("Executing security chain"));
+                        .doOnSubscribe(
+                            disposable -> {
+                                log.debug("Executing security chain");
+                                ctx.putInternalAttribute(ATTR_INTERNAL_FLOW_STAGE, "security");
+                            }
+                        )
+                        .doOnComplete(() -> ctx.removeInternalAttribute(ATTR_INTERNAL_FLOW_STAGE));
                 }
 
                 log.debug("Skipping security chain because it has been explicitly required");
@@ -101,16 +128,32 @@ public class SecurityChain {
         );
     }
 
-    private Single<Boolean> continueChain(RequestExecutionContext ctx, SecurityPlan securityPlan) {
+    private Single<Boolean> continueChain(ExecutionContext ctx, SecurityPlan securityPlan) {
         return securityPlan
             .canExecute(ctx)
             .flatMap(
                 canExecute -> {
-                    if (canExecute) {
-                        return securityPlan.execute(ctx).andThen(TRUE);
+                    if (Boolean.TRUE.equals(canExecute)) {
+                        return HookHelper
+                            .hook(
+                                () -> securityPlan.execute(ctx, executionPhase),
+                                securityPlan.id(),
+                                securityPlanHooks,
+                                ctx,
+                                executionPhase
+                            )
+                            .andThen(TRUE);
                     }
                     return FALSE;
                 }
             );
+    }
+
+    @Override
+    public void addHooks(final List<SecurityPlanHook> hooks) {
+        if (this.securityPlanHooks == null) {
+            this.securityPlanHooks = new ArrayList<>();
+        }
+        this.securityPlanHooks.addAll(hooks);
     }
 }

@@ -66,14 +66,14 @@ describe('Get Gateway instance information as admin', () => {
   it('should redirect to instance overview showing information of selected gateway', () => {
     cy.getByDataTestId('instances_instances-box').its(0).trigger('click');
     cy.url().should('contain', 'environment');
-    cy.contains('Informations');
+    cy.contains('Information');
     cy.contains('Plugins');
     cy.contains('System properties');
   });
 
   it('should display monitoring information of selected gateway', () => {
     cy.getByDataTestId('instances_instances-box').its(0).trigger('click');
-    cy.get('a[title="Monitoring"]').trigger('click');
+    cy.get('[data-testid="management.instances.detail.monitoring"]').trigger('click');
     cy.getByDataTestId('instance-monitoring_jvm-box').contains('JVM').should('be.visible');
     cy.getByDataTestId('instance-monitoring_cpu-box').scrollIntoView().contains('CPU').should('be.visible');
     cy.getByDataTestId('instance-monitoring_process-box').contains('Process').should('be.visible');

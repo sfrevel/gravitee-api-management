@@ -15,19 +15,20 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.flow;
 
-import static io.gravitee.gateway.jupiter.api.context.ExecutionContext.ATTR_INTERNAL_PREFIX;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_FLOW_STAGE;
 
 import io.gravitee.definition.model.flow.Flow;
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.GenericExecutionContext;
 import io.gravitee.gateway.jupiter.api.hook.ChainHook;
 import io.gravitee.gateway.jupiter.api.hook.Hookable;
 import io.gravitee.gateway.jupiter.core.hook.HookHelper;
 import io.gravitee.gateway.jupiter.flow.FlowResolver;
 import io.gravitee.gateway.jupiter.policy.PolicyChain;
 import io.gravitee.gateway.jupiter.policy.PolicyChainFactory;
-import io.reactivex.Completable;
-import io.reactivex.Flowable;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Flowable;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -54,7 +55,7 @@ public class FlowChain implements Hookable<ChainHook> {
     public FlowChain(String id, FlowResolver flowResolver, PolicyChainFactory policyChainFactory) {
         this.id = id;
         this.flowResolver = flowResolver;
-        this.resolvedFlowAttribute = ATTR_INTERNAL_PREFIX + "flow." + id;
+        this.resolvedFlowAttribute = "flow." + id;
         this.policyChainFactory = policyChainFactory;
     }
 
@@ -77,10 +78,16 @@ public class FlowChain implements Hookable<ChainHook> {
      * @return a {@link Completable} that completes when all the policies of the resolved flows have been executed for the specified phase or the chain has been interrupted.
      * The {@link Completable} may complete in error in case of any error occurred during the execution.
      */
-    public Completable execute(RequestExecutionContext ctx, ExecutionPhase phase) {
+    public Completable execute(ExecutionContext ctx, ExecutionPhase phase) {
         return resolveFlows(ctx)
+            .doOnNext(
+                flow -> {
+                    log.debug("Executing flow {} ({} level, {} phase)", flow.getName(), id, phase.name());
+                    ctx.putInternalAttribute(ATTR_INTERNAL_FLOW_STAGE, id);
+                }
+            )
             .flatMapCompletable(flow -> executeFlow(ctx, flow, phase), false, 1)
-            .doOnSubscribe(disposable -> log.debug("Executing flow chain {} on {} phase", id, phase));
+            .doOnComplete(() -> ctx.removeInternalAttribute(ATTR_INTERNAL_FLOW_STAGE));
     }
 
     /**
@@ -92,7 +99,7 @@ public class FlowChain implements Hookable<ChainHook> {
      * @param ctx the context used to temporary store the resolved flows.
      * @return the resolved flows.
      */
-    private Flowable<Flow> resolveFlows(RequestExecutionContext ctx) {
+    private Flowable<Flow> resolveFlows(GenericExecutionContext ctx) {
         return Flowable.defer(
             () -> {
                 Flowable<Flow> flows = ctx.getInternalAttribute(resolvedFlowAttribute);
@@ -119,10 +126,10 @@ public class FlowChain implements Hookable<ChainHook> {
      *
      * @return a {@link Completable} that completes when the flow policy chain completes.
      */
-    private Completable executeFlow(final RequestExecutionContext ctx, final Flow flow, final ExecutionPhase phase) {
+    private Completable executeFlow(final ExecutionContext ctx, final Flow flow, final ExecutionPhase phase) {
         PolicyChain policyChain = policyChainFactory.create(id, flow, phase);
         return HookHelper
-            .hook(policyChain.execute(ctx), policyChain.getId(), hooks, ctx, phase)
+            .hook(() -> policyChain.execute(ctx), policyChain.getId(), hooks, ctx, phase)
             .doOnSubscribe(subscription -> log.debug("\t-> Executing flow {} ({} level, {} phase)", flow.getName(), id, phase.name()));
     }
 }

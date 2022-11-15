@@ -24,6 +24,7 @@ import io.gravitee.rest.api.model.permissions.RoleScope;
 import io.gravitee.rest.api.model.permissions.SystemRole;
 import io.gravitee.rest.api.portal.rest.model.Links;
 import io.gravitee.rest.api.portal.rest.resource.param.PaginationParam;
+import io.gravitee.rest.api.service.AccessControlService;
 import io.gravitee.rest.api.service.ApiService;
 import io.gravitee.rest.api.service.MembershipService;
 import io.gravitee.rest.api.service.PermissionService;
@@ -31,6 +32,7 @@ import io.gravitee.rest.api.service.RoleService;
 import io.gravitee.rest.api.service.common.ExecutionContext;
 import io.gravitee.rest.api.service.exceptions.PaginationInvalidException;
 import io.gravitee.rest.api.service.exceptions.UploadUnauthorized;
+import io.gravitee.rest.api.service.v4.ApiSearchService;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -77,22 +79,28 @@ public abstract class AbstractResource<T, K> {
     protected UriInfo uriInfo;
 
     @Inject
-    MembershipService membershipService;
+    protected MembershipService membershipService;
 
     @Inject
-    PermissionService permissionService;
+    protected PermissionService permissionService;
 
     @Inject
-    RoleService roleService;
+    protected RoleService roleService;
 
     @Inject
-    ApiService apiService;
+    protected ApiService apiService;
+
+    @Inject
+    protected ApiSearchService apiSearchService;
+
+    @Inject
+    protected AccessControlService accessControlService;
 
     protected String getAuthenticatedUser() {
         return securityContext.getUserPrincipal().getName();
     }
 
-    String getAuthenticatedUserOrNull() {
+    protected String getAuthenticatedUserOrNull() {
         return isAuthenticated() ? getAuthenticatedUser() : null;
     }
 
@@ -113,7 +121,7 @@ public abstract class AbstractResource<T, K> {
         return isAuthenticated() && (permissionService.hasPermission(executionContext, permission, referenceId, acls));
     }
 
-    String checkAndScaleImage(final String encodedPicture) {
+    protected String checkAndScaleImage(final String encodedPicture) {
         if (encodedPicture != null) {
             // first check that the image is in a valid format to prevent from XSS attack
             checkImageFormat(encodedPicture);
@@ -168,7 +176,7 @@ public abstract class AbstractResource<T, K> {
                 throw new UploadUnauthorized("The image is not in a valid format");
             }
 
-            String mediaType = encodedPicture.substring("data:".length(), encodedPicture.indexOf((int) ';'));
+            String mediaType = encodedPicture.substring("data:".length(), encodedPicture.indexOf(';'));
             if (!mediaType.startsWith("image/")) {
                 throw new UploadUnauthorized("Image file format unauthorized " + mediaType);
             }
@@ -408,6 +416,14 @@ public abstract class AbstractResource<T, K> {
         return Response.ok(media.getData()).cacheControl(cc).tag(etag).type(media.getType() + "/" + media.getSubType()).build();
     }
 
+    protected URI getLocationHeader(String... paths) {
+        final UriBuilder requestUriBuilder = this.uriInfo.getRequestUriBuilder();
+        for (String path : paths) {
+            requestUriBuilder.path(path);
+        }
+        return requestUriBuilder.build();
+    }
+
     protected class DataResponse {
 
         private Collection data = null;
@@ -467,13 +483,5 @@ public abstract class AbstractResource<T, K> {
         public int hashCode() {
             return Objects.hash(data, metadata, links);
         }
-    }
-
-    protected URI getLocationHeader(String... paths) {
-        final UriBuilder requestUriBuilder = this.uriInfo.getRequestUriBuilder();
-        for (String path : paths) {
-            requestUriBuilder.path(path);
-        }
-        return requestUriBuilder.build();
     }
 }

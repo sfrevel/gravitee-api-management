@@ -15,7 +15,7 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.processor.error;
 
-import static io.gravitee.gateway.jupiter.api.context.ExecutionContext.ATTR_INTERNAL_EXECUTION_FAILURE;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_EXECUTION_FAILURE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,12 +24,13 @@ import io.gravitee.common.http.MediaType;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.jupiter.api.ExecutionFailure;
-import io.gravitee.gateway.jupiter.api.context.Request;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.Response;
+import io.gravitee.gateway.jupiter.api.context.GenericRequest;
+import io.gravitee.gateway.jupiter.api.context.GenericResponse;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
 import io.gravitee.gateway.jupiter.core.processor.Processor;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.reactivex.Completable;
+import io.reactivex.rxjava3.core.Completable;
 import java.util.List;
 
 /**
@@ -53,23 +54,27 @@ public abstract class AbstractFailureProcessor implements Processor {
     }
 
     @Override
-    public Completable execute(final RequestExecutionContext executionContext) {
-        ExecutionFailure executionFailure = executionContext.getInternalAttribute(ATTR_INTERNAL_EXECUTION_FAILURE);
-        if (executionFailure != null) {
-            // If no application has been associated to the request (for example in case security chain can not be processed
-            // correctly) set the default application to track it.
-            if (executionContext.request().metrics().getApplication() == null) {
-                executionContext.request().metrics().setApplication(APPLICATION_NAME_ANONYMOUS);
-            }
+    public Completable execute(final MutableExecutionContext ctx) {
+        ExecutionFailure executionFailure = ctx.getInternalAttribute(ATTR_INTERNAL_EXECUTION_FAILURE);
 
-            return processFailure(executionContext, executionFailure);
+        if (executionFailure == null) {
+            executionFailure =
+                new ExecutionFailure(HttpResponseStatus.INTERNAL_SERVER_ERROR.code())
+                .message(HttpResponseStatus.INTERNAL_SERVER_ERROR.reasonPhrase());
         }
-        return Completable.complete();
+
+        // If no application has been associated to the request (for example in case security chain can not be processed
+        // correctly) set the default application to track it.
+        if (ctx.request().metrics().getApplication() == null) {
+            ctx.request().metrics().setApplication(APPLICATION_NAME_ANONYMOUS);
+        }
+
+        return processFailure(ctx, executionFailure);
     }
 
-    protected Completable processFailure(final RequestExecutionContext context, final ExecutionFailure executionFailure) {
-        final Request request = context.request();
-        final Response response = context.response();
+    protected Completable processFailure(final HttpExecutionContext context, final ExecutionFailure executionFailure) {
+        final GenericRequest request = context.request();
+        final GenericResponse response = context.response();
 
         request.metrics().setErrorKey(executionFailure.key());
         response.status(executionFailure.statusCode());
@@ -80,33 +85,10 @@ public abstract class AbstractFailureProcessor implements Processor {
         }
 
         if (executionFailure.message() != null) {
-            List<String> accepts = request.headers().getAll(HttpHeaderNames.ACCEPT);
+            ExecutionFailureMessage failureMessage = ExecutionFailureMessageHelper.createFailureMessage(request, executionFailure, mapper);
 
-            Buffer payload;
-            String contentType;
-
-            if (accepts != null && (accepts.contains(MediaType.APPLICATION_JSON) || accepts.contains(MediaType.WILDCARD))) {
-                // Write error as json when accepted by the client.
-                contentType = MediaType.APPLICATION_JSON;
-
-                if (executionFailure.contentType() != null && executionFailure.contentType().equalsIgnoreCase(MediaType.APPLICATION_JSON)) {
-                    // Message is already json string.
-                    payload = Buffer.buffer(executionFailure.message());
-                } else {
-                    try {
-                        String contentAsJson = mapper.writeValueAsString(new ExecutionFailureAsJson(executionFailure));
-                        payload = Buffer.buffer(contentAsJson);
-                    } catch (JsonProcessingException jpe) {
-                        // There is a problem with json. Just return the content in text/plain.
-                        contentType = MediaType.TEXT_PLAIN;
-                        payload = Buffer.buffer(executionFailure.message());
-                    }
-                }
-            } else {
-                // Fallback to text/plain error.
-                contentType = MediaType.TEXT_PLAIN;
-                payload = Buffer.buffer(executionFailure.message());
-            }
+            String contentType = failureMessage.getContentType();
+            Buffer payload = failureMessage.getPayload();
 
             response.headers().set(HttpHeaderNames.CONTENT_LENGTH, Integer.toString(payload.length()));
             response.headers().set(HttpHeaderNames.CONTENT_TYPE, contentType);

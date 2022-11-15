@@ -16,6 +16,7 @@
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { NgModule } from '@angular/core';
 
+import { AjsRootScope } from '../../ajs-upgraded-providers';
 import { Constants } from '../../entities/Constants';
 
 export const CONSTANTS_TESTING: Constants = {
@@ -34,6 +35,11 @@ export const CONSTANTS_TESTING: Constants = {
   },
   env: {
     baseURL: 'https://url.test:3000/management/organizations/DEFAULT/environments/DEFAULT',
+    settings: {
+      apiQualityMetrics: {
+        enabled: false,
+      },
+    } as any,
   },
 };
 
@@ -43,6 +49,10 @@ export const CONSTANTS_TESTING: Constants = {
     {
       provide: 'Constants',
       useValue: CONSTANTS_TESTING,
+    },
+    {
+      provide: AjsRootScope,
+      useValue: { $broadcast: jest.fn(), $on: jest.fn() },
     },
   ],
 })

@@ -23,16 +23,15 @@ import io.gravitee.common.http.GraviteeHttpHeader;
 import io.gravitee.definition.model.Api;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.Request;
+import io.gravitee.gateway.api.service.ApiKey;
+import io.gravitee.gateway.api.service.ApiKeyService;
 import io.gravitee.gateway.core.component.ComponentProvider;
 import io.gravitee.gateway.core.component.ComponentResolver;
 import io.gravitee.gateway.security.core.AuthenticationContext;
 import io.gravitee.gateway.security.core.AuthenticationHandler;
 import io.gravitee.gateway.security.core.AuthenticationPolicy;
 import io.gravitee.gateway.security.core.PluginAuthenticationPolicy;
-import io.gravitee.repository.exceptions.TechnicalException;
-import io.gravitee.repository.management.api.ApiKeyRepository;
-import io.gravitee.repository.management.model.ApiKey;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -53,7 +52,10 @@ public class ApiKeyAuthenticationHandler implements AuthenticationHandler, Compo
 
     private static final String APIKEY_CONTEXT_ATTRIBUTE = "apikey";
 
-    private static final List<AuthenticationPolicy> POLICIES = Collections.singletonList((PluginAuthenticationPolicy) () -> API_KEY_POLICY);
+    private static final List<AuthenticationPolicy> POLICIES = Arrays.asList(
+        // First, validate the incoming api key
+        (PluginAuthenticationPolicy) () -> API_KEY_POLICY
+    );
 
     private String apiKeyHeader;
 
@@ -61,7 +63,7 @@ public class ApiKeyAuthenticationHandler implements AuthenticationHandler, Compo
 
     private Api api;
 
-    private ApiKeyRepository apiKeyRepository;
+    private ApiKeyService apiKeyService;
 
     @Override
     public boolean canHandle(AuthenticationContext context) {
@@ -73,19 +75,15 @@ public class ApiKeyAuthenticationHandler implements AuthenticationHandler, Compo
 
         context.setInternalAttribute(ATTR_INTERNAL_TOKEN_IDENTIFIED, true);
 
-        if (apiKeyRepository != null) {
+        if (apiKeyService != null) {
             // Get the api-key from the repository if not present in the context
             if (context.get(APIKEY_CONTEXT_ATTRIBUTE) == null) {
-                try {
-                    final Optional<ApiKey> optApiKey = apiKeyRepository.findByKeyAndApi(apiKey, api.getId());
-                    if (optApiKey.isPresent()) {
-                        context.request().metrics().setSecurityType(API_KEY);
-                        context.request().metrics().setSecurityToken(apiKey);
-                    }
-                    context.set(APIKEY_CONTEXT_ATTRIBUTE, optApiKey);
-                } catch (TechnicalException e) {
-                    // Any API key plan can be selected, the request will be rejected by the API Key policy whatsoever
+                final Optional<ApiKey> optApiKey = apiKeyService.getByApiAndKey(api.getId(), apiKey);
+                if (optApiKey.isPresent()) {
+                    context.request().metrics().setSecurityType(API_KEY);
+                    context.request().metrics().setSecurityToken(apiKey);
                 }
+                context.set(APIKEY_CONTEXT_ATTRIBUTE, optApiKey);
             }
         }
 
@@ -123,7 +121,7 @@ public class ApiKeyAuthenticationHandler implements AuthenticationHandler, Compo
 
     @Override
     public void resolve(ComponentProvider componentProvider) {
-        apiKeyRepository = componentProvider.getComponent(ApiKeyRepository.class);
+        apiKeyService = componentProvider.getComponent(ApiKeyService.class);
         api = componentProvider.getComponent(Api.class);
 
         Environment environment = componentProvider.getComponent(Environment.class);

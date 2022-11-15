@@ -17,15 +17,14 @@ package io.gravitee.gateway.jupiter.handlers.api.processor.cors;
 
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.common.http.HttpStatusCode;
-import io.gravitee.definition.model.Api;
 import io.gravitee.definition.model.Cors;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.handlers.api.processor.cors.CorsPreflightInvoker;
-import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.Request;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.Response;
-import io.reactivex.Completable;
+import io.gravitee.gateway.jupiter.api.context.ContextAttributes;
+import io.gravitee.gateway.jupiter.api.context.GenericRequest;
+import io.gravitee.gateway.jupiter.api.context.GenericResponse;
+import io.gravitee.gateway.jupiter.core.context.MutableExecutionContext;
+import io.reactivex.rxjava3.core.Completable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -52,20 +51,19 @@ public class CorsPreflightRequestProcessor extends AbstractCorsRequestProcessor 
     }
 
     @Override
-    public Completable execute(final RequestExecutionContext ctx) {
+    public Completable execute(final MutableExecutionContext ctx) {
         return Completable.defer(
             () -> {
                 // Test if we are in the context of a preflight request
                 if (isPreflightRequest(ctx.request())) {
-                    Api api = ctx.getComponent(Api.class);
-                    Cors cors = api.getProxy().getCors();
+                    Cors cors = getCors(ctx);
                     handlePreflightRequest(cors, ctx.request(), ctx.response());
                     // If we don't want to run policies, exit request processing
                     if (!cors.isRunPolicies()) {
                         return ctx.interrupt();
                     } else {
                         ctx.setAttribute("skip-security-chain", true);
-                        ctx.setAttribute(ExecutionContext.ATTR_INVOKER, new CorsPreflightInvoker());
+                        ctx.setAttribute(ContextAttributes.ATTR_INVOKER, new CorsPreflightInvoker());
                         return Completable.complete();
                     }
                 }
@@ -74,7 +72,7 @@ public class CorsPreflightRequestProcessor extends AbstractCorsRequestProcessor 
         );
     }
 
-    private boolean isPreflightRequest(final Request request) {
+    private boolean isPreflightRequest(final GenericRequest request) {
         String originHeader = request.headers().get(HttpHeaderNames.ORIGIN);
         String accessControlRequestMethod = request.headers().get(HttpHeaderNames.ACCESS_CONTROL_REQUEST_METHOD);
         return request.method() == HttpMethod.OPTIONS && originHeader != null && accessControlRequestMethod != null;
@@ -86,7 +84,7 @@ public class CorsPreflightRequestProcessor extends AbstractCorsRequestProcessor 
      * @param request Incoming Request
      * @param response Client response
      */
-    private void handlePreflightRequest(final Cors cors, final Request request, final Response response) {
+    private void handlePreflightRequest(final Cors cors, final GenericRequest request, final GenericResponse response) {
         // In case of pre-flight request, we are not able to define what is the calling application.
         // Define it as unknown
         request.metrics().setApplication("1");
@@ -170,7 +168,7 @@ public class CorsPreflightRequestProcessor extends AbstractCorsRequestProcessor 
     private boolean isRequestValid(final String incoming, final Set<String> configuredValues) {
         List<String> inputs = splitAndTrim(incoming);
         return (
-            ((inputs == null || (inputs.size() == 1 && inputs.get(0).isEmpty()))) ||
+            (inputs == null || (inputs.size() == 1 && inputs.get(0).isEmpty())) ||
             (configuredValues == null || configuredValues.isEmpty()) ||
             (configuredValues.containsAll(inputs))
         );

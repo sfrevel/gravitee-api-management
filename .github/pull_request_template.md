@@ -1,12 +1,12 @@
-**Issue**
+## Issue
 
-https://github.com/gravitee-io/issues/issues/XXXXX
+https://graviteecommunity.atlassian.net/browse/APIM-XXX
 
-**Description**
+## Description
 
 A small description of what you did in that PR.
 
-**Additional context**
+## Additional context
 
 <!-- Add any other context about the PR here -->
 <!-- It can be links to other PRs or docs or drawing -->

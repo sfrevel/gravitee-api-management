@@ -18,14 +18,12 @@ package io.gravitee.gateway.jupiter.policy.adapter.policy;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.stream.ReadWriteStream;
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
-import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
-import io.gravitee.gateway.jupiter.api.message.Message;
+import io.gravitee.gateway.jupiter.api.context.HttpExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.MessageExecutionContext;
 import io.gravitee.gateway.jupiter.api.policy.Policy;
 import io.gravitee.gateway.jupiter.policy.adapter.context.ExecutionContextAdapter;
-import io.reactivex.Completable;
-import io.reactivex.Flowable;
-import io.reactivex.Maybe;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Maybe;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -48,23 +46,23 @@ public class PolicyAdapter implements Policy {
     }
 
     @Override
-    public Completable onRequest(RequestExecutionContext ctx) {
+    public Completable onRequest(HttpExecutionContext ctx) {
         return execute(ctx, ExecutionPhase.REQUEST);
     }
 
     @Override
-    public Completable onResponse(RequestExecutionContext ctx) {
+    public Completable onResponse(HttpExecutionContext ctx) {
         return execute(ctx, ExecutionPhase.RESPONSE);
     }
 
     @Override
-    public Maybe<Message> onMessage(ExecutionContext ctx, Message message) {
-        return Maybe.error(new RuntimeException("Cannot adapt v3 policy for message execution"));
+    public Completable onMessageRequest(final MessageExecutionContext ctx) {
+        return Completable.error(new RuntimeException("Cannot adapt v3 policy for message execution"));
     }
 
     @Override
-    public Flowable<Message> onMessageFlow(ExecutionContext ctx, Flowable<Message> messageFlow) {
-        return Flowable.error(new RuntimeException("Cannot adapt v3 policy for message flow execution"));
+    public Completable onMessageResponse(final MessageExecutionContext ctx) {
+        return Completable.error(new RuntimeException("Cannot adapt v3 policy for message execution"));
     }
 
     /**
@@ -78,29 +76,31 @@ public class PolicyAdapter implements Policy {
      *
      * @return a {@link Completable} indicating the execution is completed.
      */
-    private Completable execute(final RequestExecutionContext ctx, final ExecutionPhase phase) {
+    private Completable execute(final HttpExecutionContext ctx, final ExecutionPhase phase) {
+        final ExecutionContextAdapter adaptedCtx = ExecutionContextAdapter.create(ctx);
+
         Completable completable;
 
         if (policy.isRunnable()) {
             // Execute the policy.execute(...) function.
-            completable = this.policyExecute(ctx);
+            completable = this.policyExecute(adaptedCtx);
         } else {
             completable = Completable.complete();
         }
 
         if (policy.isStreamable()) {
             // Chain execution with the execution of the policy.stream(...) function.
-            completable = completable.andThen(this.policyStream(ctx, phase));
+            completable = completable.andThen(this.policyStream(adaptedCtx, phase));
         }
 
-        return completable;
+        return completable.doFinally(adaptedCtx::restore);
     }
 
-    private Completable policyExecute(RequestExecutionContext ctx) {
+    private Completable policyExecute(ExecutionContextAdapter adaptedCtx) {
         return Completable.create(
             emitter -> {
                 try {
-                    policy.execute(new PolicyChainAdapter(ctx, emitter), ExecutionContextAdapter.create(ctx));
+                    policy.execute(new PolicyChainAdapter(adaptedCtx.getDelegate(), emitter), adaptedCtx);
                 } catch (Throwable t) {
                     emitter.tryOnError(new Exception("An error occurred while trying to execute policy " + policy.id(), t));
                 }
@@ -108,15 +108,13 @@ public class PolicyAdapter implements Policy {
         );
     }
 
-    private Completable policyStream(RequestExecutionContext ctx, ExecutionPhase phase) {
+    private Completable policyStream(ExecutionContextAdapter adaptedCtx, ExecutionPhase phase) {
         return Completable.create(
             emitter -> {
                 try {
                     // Invoke the policy to get the appropriate read/write stream.
-                    final ReadWriteStream<Buffer> stream = policy.stream(
-                        new PolicyChainAdapter(ctx, emitter),
-                        ExecutionContextAdapter.create(ctx)
-                    );
+                    final HttpExecutionContext ctx = adaptedCtx.getDelegate();
+                    final ReadWriteStream<Buffer> stream = policy.stream(new PolicyChainAdapter(ctx, emitter), adaptedCtx);
 
                     if (stream == null) {
                         // Null stream means that the policy does nothing.
@@ -147,7 +145,7 @@ public class PolicyAdapter implements Policy {
                             .doOnSuccess(stream::write)
                             .doFinally(stream::end)
                             .doOnError(emitter::tryOnError)
-                            .onErrorResumeNext(s -> {})
+                            .onErrorResumeWith(s -> {})
                             .subscribe();
                     }
                 } catch (Throwable t) {
@@ -157,7 +155,7 @@ public class PolicyAdapter implements Policy {
         );
     }
 
-    private Maybe<Buffer> getBody(RequestExecutionContext ctx, ExecutionPhase phase) {
+    private Maybe<Buffer> getBody(HttpExecutionContext ctx, ExecutionPhase phase) {
         if (phase == ExecutionPhase.REQUEST) {
             return ctx.request().body();
         } else {
@@ -165,7 +163,7 @@ public class PolicyAdapter implements Policy {
         }
     }
 
-    private void setBody(RequestExecutionContext ctx, ExecutionPhase phase, Buffer newBuffer) {
+    private void setBody(HttpExecutionContext ctx, ExecutionPhase phase, Buffer newBuffer) {
         if (phase == ExecutionPhase.REQUEST) {
             ctx.request().body(newBuffer);
         } else {

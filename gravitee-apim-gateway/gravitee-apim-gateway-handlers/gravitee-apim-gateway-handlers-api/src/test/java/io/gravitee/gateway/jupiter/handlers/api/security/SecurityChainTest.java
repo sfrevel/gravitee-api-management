@@ -15,6 +15,8 @@
  */
 package io.gravitee.gateway.jupiter.handlers.api.security;
 
+import static io.gravitee.gateway.jupiter.api.context.ContextAttributes.ATTR_SKIP_SECURITY_CHAIN;
+import static io.gravitee.gateway.jupiter.api.context.InternalContextAttributes.ATTR_INTERNAL_SECURITY_TOKEN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -22,15 +24,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import io.gravitee.common.http.HttpStatusCode;
+import io.gravitee.definition.model.Api;
 import io.gravitee.definition.model.Plan;
-import io.gravitee.gateway.handlers.api.definition.Api;
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
 import io.gravitee.gateway.jupiter.api.policy.SecurityPolicy;
+import io.gravitee.gateway.jupiter.api.policy.SecurityToken;
+import io.gravitee.gateway.jupiter.handlers.api.security.plan.SecurityPlan;
 import io.gravitee.gateway.jupiter.policy.PolicyManager;
-import io.reactivex.Completable;
-import io.reactivex.Single;
-import io.reactivex.observers.TestObserver;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Maybe;
+import io.reactivex.rxjava3.observers.TestObserver;
 import java.util.ArrayList;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -56,10 +60,10 @@ class SecurityChainTest {
     private PolicyManager policyManager;
 
     @Mock
-    private RequestExecutionContext ctx;
+    private ExecutionContext ctx;
 
     @Test
-    void shouldExecuteSecurityPolicyWhenCanHandle() {
+    void shouldExecuteSecurityPolicyWhenHasRelevantSecurityToken() {
         final Plan plan1 = mockPlan("plan1");
         final Plan plan2 = mockPlan("plan2");
         final SecurityPolicy policy1 = mockSecurityPolicy("plan1", false, false);
@@ -75,10 +79,11 @@ class SecurityChainTest {
 
         when(policy2.onRequest(ctx)).thenReturn(Completable.complete());
 
-        final SecurityChain cut = new SecurityChain(api, policyManager);
+        final SecurityChain cut = new SecurityChain(api, policyManager, ExecutionPhase.REQUEST);
         final TestObserver<Void> obs = cut.execute(ctx).test();
 
         obs.assertResult();
+        verify(ctx, times(1)).removeInternalAttribute(ATTR_INTERNAL_SECURITY_TOKEN);
     }
 
     @Test
@@ -98,12 +103,13 @@ class SecurityChainTest {
 
         when(policy1.onRequest(ctx)).thenReturn(Completable.complete());
 
-        final SecurityChain cut = new SecurityChain(api, policyManager);
+        final SecurityChain cut = new SecurityChain(api, policyManager, ExecutionPhase.REQUEST);
         final TestObserver<Void> obs = cut.execute(ctx).test();
 
         obs.assertResult();
         verify(policy2).order();
         verifyNoMoreInteractions(policy2);
+        verify(ctx, times(1)).removeInternalAttribute(ATTR_INTERNAL_SECURITY_TOKEN);
     }
 
     @Test
@@ -121,15 +127,16 @@ class SecurityChainTest {
         when(policy1.order()).thenReturn(0);
         when(policy2.order()).thenReturn(1);
 
-        when(ctx.getAttribute(SecurityChain.SKIP_SECURITY_CHAIN)).thenReturn(true);
+        when(ctx.getAttribute(ATTR_SKIP_SECURITY_CHAIN)).thenReturn(true);
 
-        final SecurityChain cut = new SecurityChain(api, policyManager);
+        final SecurityChain cut = new SecurityChain(api, policyManager, ExecutionPhase.REQUEST);
         final TestObserver<Void> obs = cut.execute(ctx).test();
 
         obs.assertResult();
         verify(policy1).order();
         verify(policy2).order();
         verifyNoMoreInteractions(policy1, policy2);
+        verify(ctx, never()).removeInternalAttribute(ATTR_INTERNAL_SECURITY_TOKEN);
     }
 
     @Test
@@ -137,15 +144,16 @@ class SecurityChainTest {
         when(api.getPlans()).thenReturn(new ArrayList<>());
         when(ctx.interruptWith(any())).thenReturn(Completable.error(new RuntimeException(MOCK_EXCEPTION)));
 
-        final SecurityChain cut = new SecurityChain(api, policyManager);
+        final SecurityChain cut = new SecurityChain(api, policyManager, ExecutionPhase.REQUEST);
         final TestObserver<Void> obs = cut.execute(ctx).test();
 
         obs.assertError(Throwable.class);
         verifyUnauthorized();
+        verify(ctx, times(1)).removeInternalAttribute(ATTR_INTERNAL_SECURITY_TOKEN);
     }
 
     @Test
-    void shouldInterrupt401WhenNoPolicyCanHandle() {
+    void shouldInterrupt401WhenNoPolicyHasRelevantSecurityToken() {
         final Plan plan1 = mockPlan("plan1");
         final Plan plan2 = mockPlan("plan2");
         final SecurityPolicy policy1 = mockSecurityPolicy("plan1", false, false);
@@ -161,11 +169,12 @@ class SecurityChainTest {
 
         when(ctx.interruptWith(any())).thenReturn(Completable.error(new RuntimeException(MOCK_EXCEPTION)));
 
-        final SecurityChain cut = new SecurityChain(api, policyManager);
+        final SecurityChain cut = new SecurityChain(api, policyManager, ExecutionPhase.REQUEST);
         final TestObserver<Void> obs = cut.execute(ctx).test();
 
         obs.assertError(Throwable.class);
         verifyUnauthorized();
+        verify(ctx, times(1)).removeInternalAttribute(ATTR_INTERNAL_SECURITY_TOKEN);
     }
 
     private void verifyUnauthorized() {
@@ -194,7 +203,7 @@ class SecurityChainTest {
         return plan;
     }
 
-    private SecurityPolicy mockSecurityPolicy(String name, boolean canHandle, boolean validateSubscription) {
+    private SecurityPolicy mockSecurityPolicy(String name, boolean hasSecurityToken, boolean validateSubscription) {
         final SecurityPolicy policy = mock(SecurityPolicy.class);
 
         when(
@@ -208,9 +217,10 @@ class SecurityChainTest {
         )
             .thenReturn(policy);
 
-        lenient().when(policy.support(ctx)).thenReturn(Single.just(canHandle));
+        Maybe<SecurityToken> securityTokenMaybe = hasSecurityToken ? Maybe.just(SecurityToken.forApiKey("testApiKey")) : Maybe.empty();
+        lenient().when(policy.extractSecurityToken(ctx)).thenReturn(securityTokenMaybe);
 
-        if (canHandle) {
+        if (hasSecurityToken) {
             lenient().when(policy.requireSubscription()).thenReturn(validateSubscription);
         }
 

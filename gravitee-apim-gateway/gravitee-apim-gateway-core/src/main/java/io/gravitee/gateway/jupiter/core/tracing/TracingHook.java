@@ -16,17 +16,18 @@
 package io.gravitee.gateway.jupiter.core.tracing;
 
 import io.gravitee.gateway.jupiter.api.ExecutionPhase;
-import io.gravitee.gateway.jupiter.api.context.RequestExecutionContext;
+import io.gravitee.gateway.jupiter.api.context.ExecutionContext;
 import io.gravitee.gateway.jupiter.api.hook.ChainHook;
 import io.gravitee.gateway.jupiter.api.hook.InvokerHook;
 import io.gravitee.gateway.jupiter.api.hook.ProcessorHook;
+import io.gravitee.gateway.jupiter.api.hook.SecurityPlanHook;
 import io.gravitee.tracing.api.Span;
 
 /**
  * @author Guillaume LAMIRAND (guillaume.lamirand at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class TracingHook extends AbstractTracingHook implements ProcessorHook, ChainHook, InvokerHook {
+public class TracingHook extends AbstractTracingHook implements ProcessorHook, ChainHook, InvokerHook, SecurityPlanHook {
 
     private final String key;
 
@@ -52,7 +53,7 @@ public class TracingHook extends AbstractTracingHook implements ProcessorHook, C
     }
 
     @Override
-    protected void withAttributes(String id, RequestExecutionContext ctx, ExecutionPhase executionPhase, Span span) {
+    protected void withAttributes(String id, ExecutionContext ctx, ExecutionPhase executionPhase, Span span) {
         super.withAttributes(id, ctx, executionPhase, span);
         span.withAttribute(key, id);
     }

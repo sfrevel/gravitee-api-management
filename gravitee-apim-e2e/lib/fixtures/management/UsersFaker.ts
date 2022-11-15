@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 import faker from '@faker-js/faker';
-import { NewPreRegisterUserEntity } from '@management-models/NewPreRegisterUserEntity';
-import { RegisterUserInput } from '@portal-models/RegisterUserInput';
+import { NewPreRegisterUserEntity } from '@gravitee/management-webclient-sdk/src/lib/models/NewPreRegisterUserEntity';
+import { RegisterUserInput } from '@gravitee/portal-webclient-sdk/src/lib/models/RegisterUserInput';
 
 export class UsersFaker {
   static newNewPreRegisterUserEntity(attributes?: Partial<NewPreRegisterUserEntity>): NewPreRegisterUserEntity {

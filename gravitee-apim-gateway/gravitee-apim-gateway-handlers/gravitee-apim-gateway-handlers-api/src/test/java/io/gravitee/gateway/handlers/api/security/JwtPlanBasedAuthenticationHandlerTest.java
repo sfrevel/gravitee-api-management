@@ -16,29 +16,22 @@
 package io.gravitee.gateway.handlers.api.security;
 
 import static org.junit.Assert.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 import io.gravitee.definition.model.Plan;
 import io.gravitee.gateway.api.Request;
+import io.gravitee.gateway.api.service.Subscription;
+import io.gravitee.gateway.handlers.api.services.SubscriptionService;
 import io.gravitee.gateway.security.core.AuthenticationContext;
 import io.gravitee.gateway.security.core.LazyJwtToken;
 import io.gravitee.reporter.api.http.Metrics;
-import io.gravitee.repository.exceptions.TechnicalException;
-import io.gravitee.repository.management.api.SubscriptionRepository;
-import io.gravitee.repository.management.api.search.SubscriptionCriteria;
-import io.gravitee.repository.management.model.Subscription;
-import java.sql.Date;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -60,7 +53,7 @@ public class JwtPlanBasedAuthenticationHandlerTest {
     private AuthenticationContext authenticationContext;
 
     @Mock
-    private SubscriptionRepository subscriptionRepository;
+    private SubscriptionService subscriptionService;
 
     @Mock
     private Plan plan;
@@ -87,6 +80,19 @@ public class JwtPlanBasedAuthenticationHandlerTest {
         Map<String, Object> claims = Map.of("azp", "value1", "my-custom-claim", "value2", "aud", "value3");
 
         assertEquals("value2", authenticationHandler.getClientId(claims));
+    }
+
+    @Test
+    public void getClientId_should_extract_custom_claim_once_then_use_cache() {
+        when(plan.getSecurityDefinition()).thenReturn("{\"clientIdClaim\": \"my-custom-claim\"}");
+        Map<String, Object> claims = Map.of("azp", "value1", "my-custom-claim", "value2", "aud", "value3");
+
+        for (int i = 0; i < 10; i++) {
+            assertEquals("value2", authenticationHandler.getClientId(claims));
+        }
+
+        // Security definition should be accessed only once.
+        verify(plan).getSecurityDefinition();
     }
 
     @Test
@@ -139,7 +145,7 @@ public class JwtPlanBasedAuthenticationHandlerTest {
     }
 
     @Test
-    public void preCheckSubscription_should_return_false_cause_subscription_not_found_and_not_last_handler() throws TechnicalException {
+    public void preCheckSubscription_should_return_false_cause_subscription_not_found_and_not_last_handler() {
         when(token.getClaims()).thenReturn(Map.of("client_id", CLIENT_ID));
         when(authenticationContext.get("jwt")).thenReturn(token);
         when(
@@ -148,7 +154,7 @@ public class JwtPlanBasedAuthenticationHandlerTest {
             .thenReturn(false);
 
         assertFalse(authenticationHandler.preCheckSubscription(authenticationContext));
-        assertSubscriptionRepositorySearch();
+        verify(subscriptionService).getByApiAndClientIdAndPlan(API_ID, CLIENT_ID, PLAN_ID);
     }
 
     @Test
@@ -161,39 +167,31 @@ public class JwtPlanBasedAuthenticationHandlerTest {
             .thenReturn(true);
 
         assertTrue(authenticationHandler.preCheckSubscription(authenticationContext));
-        verifyNoInteractions(subscriptionRepository);
+        verifyNoInteractions(subscriptionService);
     }
 
     @Test
-    public void preCheckSubscription_should_return_false_cause_subscription_ended() throws TechnicalException {
+    public void preCheckSubscription_should_return_false_cause_subscription_ended() {
         when(token.getClaims()).thenReturn(Map.of("client_id", CLIENT_ID));
         when(authenticationContext.get("jwt")).thenReturn(token);
-        when(subscription.getEndingAt()).thenReturn(Date.from(Instant.now().minus(1, ChronoUnit.DAYS)));
+        when(subscription.isTimeValid(anyLong())).thenReturn(false);
         when(request.timestamp()).thenReturn(new java.util.Date().getTime());
-        when(subscriptionRepository.search(any())).thenReturn(List.of(subscription));
+        when(subscriptionService.getByApiAndClientIdAndPlan(API_ID, CLIENT_ID, PLAN_ID)).thenReturn(Optional.of(subscription));
 
         assertFalse(authenticationHandler.preCheckSubscription(authenticationContext));
-        assertSubscriptionRepositorySearch();
+        verify(subscriptionService).getByApiAndClientIdAndPlan(API_ID, CLIENT_ID, PLAN_ID);
     }
 
     @Test
-    public void preCheckSubscription_should_return_true() throws TechnicalException {
+    public void preCheckSubscription_should_return_true() {
         when(token.getClaims()).thenReturn(Map.of("client_id", CLIENT_ID));
         when(authenticationContext.get("jwt")).thenReturn(token);
-        when(subscription.getEndingAt()).thenReturn(Date.from(Instant.now().plus(1, ChronoUnit.DAYS)));
+        when(subscription.isTimeValid(anyLong())).thenReturn(true);
         when(request.timestamp()).thenReturn(new java.util.Date().getTime());
         when(request.metrics()).thenReturn(Metrics.on(new java.util.Date().getTime()).build());
-        when(subscriptionRepository.search(any())).thenReturn(List.of(subscription));
+        when(subscriptionService.getByApiAndClientIdAndPlan(API_ID, CLIENT_ID, PLAN_ID)).thenReturn(Optional.of(subscription));
 
         assertTrue(authenticationHandler.preCheckSubscription(authenticationContext));
-        assertSubscriptionRepositorySearch();
-    }
-
-    private void assertSubscriptionRepositorySearch() throws TechnicalException {
-        ArgumentCaptor<SubscriptionCriteria> criteriaArgumentCaptor = ArgumentCaptor.forClass(SubscriptionCriteria.class);
-        verify(subscriptionRepository).search(criteriaArgumentCaptor.capture());
-        assertEquals(Collections.singleton(PLAN_ID), criteriaArgumentCaptor.getValue().getPlans());
-        assertEquals(Collections.singleton(API_ID), criteriaArgumentCaptor.getValue().getApis());
-        assertEquals(CLIENT_ID, criteriaArgumentCaptor.getValue().getClientId());
+        verify(subscriptionService).getByApiAndClientIdAndPlan(API_ID, CLIENT_ID, PLAN_ID);
     }
 }

@@ -22,7 +22,7 @@ function apisDesignRouterConfig($stateProvider) {
   'ngInject';
   $stateProvider
     .state('management.apis.detail.design', {
-      template: require('./apis.design.route.html'),
+      abstract: true,
     })
     .state('management.apis.detail.design.policies', {
       url: '/policies',
@@ -34,10 +34,6 @@ function apisDesignRouterConfig($stateProvider) {
       },
       apiDefinition: { version: '1.0.0', redirect: 'management.apis.detail.design.flowsNg' },
       data: {
-        menu: {
-          label: 'Design',
-          icon: 'palette',
-        },
         perms: {
           only: ['api-definition-r'],
         },

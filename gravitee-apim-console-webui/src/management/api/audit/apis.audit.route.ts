@@ -21,7 +21,7 @@ function apisAuditRouterConfig($stateProvider) {
   'ngInject';
   $stateProvider
     .state('management.apis.detail.audit', {
-      template: require('./apis.audit.route.html'),
+      abstract: true,
     })
     .state('management.apis.detail.audit.general', {
       url: '/audit',
@@ -29,10 +29,6 @@ function apisAuditRouterConfig($stateProvider) {
       controller: 'ApiAuditController',
       controllerAs: 'auditCtrl',
       data: {
-        menu: {
-          label: 'Audit',
-          icon: 'visibility',
-        },
         perms: {
           only: ['api-audit-r'],
         },

@@ -43,14 +43,14 @@ public class VertxHttp2ServerRequest extends VertxHttpServerRequest {
     public Request customFrameHandler(Handler<HttpFrame> frameHandler) {
         getNativeServerRequest()
             .customFrameHandler(
-                frame -> frameHandler.handle(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload().getBytes())))
+                frame -> frameHandler.handle(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload())))
             );
 
         return this;
     }
 
     @Override
-    public Response create() {
+    public Response createResponse() {
         return new VertxHttp2ServerResponse(this);
     }
 }
