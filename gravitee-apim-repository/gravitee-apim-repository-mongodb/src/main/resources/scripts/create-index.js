@@ -34,6 +34,7 @@ db.getCollection(`${prefix}plans`).reIndex();
 db.getCollection(`${prefix}subscriptions`).dropIndexes();
 db.getCollection(`${prefix}subscriptions`).createIndex( { "plan" : 1 }, { "name": "p1" } );
 db.getCollection(`${prefix}subscriptions`).createIndex( { "application" : 1 }, { "name": "a1" } );
+db.getCollection(`${prefix}subscriptions`).createIndex( { "createdAt" : -1 }, { "name": "c-1" } );
 db.getCollection(`${prefix}subscriptions`).reIndex();
 
 // "keys" collection
@@ -45,6 +46,7 @@ db.getCollection(`${prefix}keys`).createIndex( { "revoked" : 1 }, { "name": "r1"
 db.getCollection(`${prefix}keys`).createIndex( { "plan" : 1 , "revoked" : 1, "updatedAt" : 1 }, { "name": "p1r1u1" } );
 db.getCollection(`${prefix}keys`).createIndex( { "key" : 1 }, { "name": "k1" } );
 db.getCollection(`${prefix}keys`).createIndex( { "key" : 1, "api" : 1 }, { "name": "k1a1" } );
+db.getCollection(`${prefix}keys`).createIndex( { "subscriptions" : 1 }, { "name": "s1" } );
 db.getCollection(`${prefix}keys`).reIndex();
 
 // "pages" collection
