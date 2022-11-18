@@ -20,6 +20,7 @@ import static io.gravitee.rest.api.model.alert.AlertReferenceType.ENVIRONMENT;
 import static io.gravitee.rest.api.service.common.GraviteeContext.getCurrentEnvironment;
 import static io.gravitee.rest.api.service.common.GraviteeContext.getExecutionContext;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import io.gravitee.common.http.HttpStatusCode;
@@ -47,6 +48,7 @@ public class PlatformAlertsResourceTest extends AbstractResourceTest {
     @Before
     public void setUp() {
         reset(alertService, alertAnalyticsService);
+        when(permissionService.hasPermission(any(), any(), any(), any())).thenReturn(true);
     }
 
     private class TestAlertTrigger extends AlertTriggerEntity {
